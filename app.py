@@ -302,8 +302,6 @@ def get_download_link(text, filename, link_text):
     return href
 
 def main():
-    st.set_page_config(page_title="AI Görsel Üretim Aracı", page_icon="🎨", layout="wide")
-    
     st.title("🎨 AI Görsel Üretim Aracı")
     st.markdown("### Pixar/Disney Tarzı ve Gerçekçi Görsel Üretim Asistanı")
     
