@@ -29,9 +29,6 @@ if not check_password():
 # API anahtarını gizli değişken olarak ayarlayın
 openai.api_key = st.secrets["openai_api_key"]
 
-# API anahtarını ayarla
-openai.api_key = "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"
-
 # Niş kategorileri ve fikirleri
 nis_kategorileri = {
     "Aile & Çift Portreleri (Pixar / Disney tarzı)": [
