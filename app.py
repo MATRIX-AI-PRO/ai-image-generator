@@ -5,6 +5,9 @@ from PIL import Image
 import time
 from openai import OpenAI
 
+# İlk olarak sayfa yapılandırmasını ayarlayın
+st.set_page_config(page_title="AI Görsel Üretim Aracı", page_icon="🎨", layout="wide")
+
 # Parola koruması
 def check_password():
     """Basit parola kontrolü"""
