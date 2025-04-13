@@ -1,9 +1,9 @@
 import streamlit as st
-import openai
 import io
 import base64
 from PIL import Image
 import time
+from openai import OpenAI
 
 # Parola koruması
 def check_password():
@@ -26,8 +26,8 @@ def check_password():
 if not check_password():
     st.stop()  # Şifre doğru değilse uygulamayı durdur
 
-# API anahtarını gizli değişken olarak ayarlayın
-openai.api_key = st.secrets["openai_api_key"]
+# OpenAI istemcisini oluştur
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # Niş kategorileri ve fikirleri
 nis_kategorileri = {
@@ -223,7 +223,7 @@ def generate_realistic_prompt(cartoon_prompt):
         
         user_message = f"Convert this cartoon prompt to a realistic photography prompt: {cartoon_prompt}"
         
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_message},
@@ -240,7 +240,7 @@ def generate_realistic_prompt(cartoon_prompt):
 def generate_image(prompt):
     """OpenAI API kullanarak görsel oluşturur"""
     try:
-        response = openai.images.generate(
+        response = client.images.generate(
             model="dall-e-3",
             prompt=prompt,
             size="1024x1024",
@@ -279,7 +279,7 @@ def generate_etsy_metadata(prompt, fikir, nis_kategori):
         Create Etsy-optimized title, description, and tags for this digital art product.
         """
         
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_message},
