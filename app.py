@@ -5,6 +5,30 @@ import base64
 from PIL import Image
 import time
 
+# Parola koruması
+def check_password():
+    """Basit parola kontrolü"""
+    if "password_correct" not in st.session_state:
+        st.session_state.password_correct = False
+
+    if st.session_state.password_correct:
+        return True
+
+    password = st.text_input("Şifre giriniz", type="password")
+    if password == "matrix2025":  # Güçlü bir şifre belirleyin
+        st.session_state.password_correct = True
+        return True
+    else:
+        if password:
+            st.error("Şifre yanlış")
+        return False
+
+if not check_password():
+    st.stop()  # Şifre doğru değilse uygulamayı durdur
+
+# API anahtarını gizli değişken olarak ayarlayın
+openai.api_key = st.secrets["openai_api_key"]
+
 # API anahtarını ayarla
 openai.api_key = "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"
 
