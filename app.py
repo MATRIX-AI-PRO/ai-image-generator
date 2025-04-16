@@ -7,6 +7,21 @@ from PIL import Image
 from openai import OpenAI
 import random
 from datetime import datetime
+import requests  # Eksik import eklendi
+
+# Session state kontrolü
+if 'selected_image' not in st.session_state:
+    st.session_state.selected_image = None
+
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = 'Görsel Oluşturma'
+
+if 'realistic_images' not in st.session_state:
+    st.session_state.realistic_images = []
+if 'cartoon_images' not in st.session_state:
+    st.session_state.cartoon_images = []
+if 'realistic_prompt' not in st.session_state:
+    st.session_state.realistic_prompt = ""
 
 # Sayfa yapılandırması
 st.set_page_config(page_title="AI Görsel Üretim Aracı", layout="wide")
@@ -68,6 +83,22 @@ st.markdown("""
         border-radius: 5px;
         margin-bottom: 15px;
     }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #2a2a2a;
+        border-radius: 5px 5px 0px 0px;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #ff4b4b !important;
+        color: white !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -81,20 +112,9 @@ st.markdown("""
 
 st.markdown("### Gerçekçi Görsel Üretim ve Cartoon Dönüşüm Asistanı")
 
-# Session state başlatma
-if 'realistic_images' not in st.session_state:
-    st.session_state.realistic_images = []
-if 'cartoon_images' not in st.session_state:
-    st.session_state.cartoon_images = []
-if 'realistic_prompt' not in st.session_state:
-    st.session_state.realistic_prompt = ""
-if 'selected_image' not in st.session_state:
-    st.session_state.selected_image = None
-
-# Ana sekmeler
-tab1, tab2, tab3 = st.tabs(["Görsel Oluşturma", "Cartoon Dönüşümü", "Etsy Metadata"])
-
-with tab1:
+# Fonksiyonlar
+def show_image_generation():
+    """Görsel oluşturma arayüzünü gösterir"""
     st.markdown('<div class="section-title"><h3>Görsel Oluşturma Ayarları</h3></div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
@@ -248,14 +268,17 @@ with tab1:
                             st.image(image_url, use_column_width=True)
                             if st.button(f"Bu Görseli Seç #{i+1}", key=f"select_img_{i}"):
                                 st.session_state.selected_image = image_url
+                                st.session_state.active_tab = 'Cartoon Dönüşümü'
                                 st.success(f"Görsel #{i+1} seçildi! Cartoon Dönüşümü sekmesine geçebilirsiniz.")
+                                st.rerun()  # Sayfayı yeniden yükle
                     
                     st.markdown('</div>', unsafe_allow_html=True)
                     
             except Exception as e:
                 st.error(f"Görseller oluşturulurken bir hata oluştu: {e}")
 
-with tab2:
+def show_cartoon_conversion():
+    """Cartoon dönüşüm arayüzünü gösterir"""
     st.markdown('<div class="section-title"><h3>Cartoon Stiline Dönüştürme</h3></div>', unsafe_allow_html=True)
     
     if st.session_state.selected_image:
@@ -336,10 +359,18 @@ with tab2:
                         st.success("Görsel başarıyla cartoon stiline dönüştürüldü!")
                         st.image(cartoon_image_url, use_column_width=True)
                         
+                        # Etsy Metadata sekmesine geçiş butonu
+                        if st.button("Etsy Metadata'ya Geç"):
+                            st.session_state.active_tab = 'Etsy Metadata'
+                            st.rerun()
+                        
                 except Exception as e:
                     st.error(f"Görsel dönüştürülürken bir hata oluştu: {e}")
     else:
         st.info("Lütfen önce 'Görsel Oluşturma' sekmesinden bir görsel oluşturun ve seçin.")
+        if st.button("Görsel Oluşturmaya Dön"):
+            st.session_state.active_tab = 'Görsel Oluşturma'
+            st.rerun()
         
     # Geçmiş dönüşümler
     if st.session_state.cartoon_images:
@@ -347,7 +378,8 @@ with tab2:
         for i, img_data in enumerate(st.session_state.cartoon_images):
             st.image(img_data["url"], caption=f"{img_data['style']} - {img_data['timestamp']}", width=200)
 
-with tab3:
+def show_etsy_metadata():
+    """Etsy metadata arayüzünü gösterir"""
     st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
     
     if st.session_state.cartoon_images:
@@ -403,6 +435,35 @@ with tab3:
             
     else:
         st.info("Lütfen önce 'Cartoon Dönüşümü' sekmesinden bir görseli cartoon stiline dönüştürün.")
+        if st.button("Cartoon Dönüşümüne Dön"):
+            st.session_state.active_tab = 'Cartoon Dönüşümü'
+            st.rerun()
+
+# Ana sekmeler
+tab_names = ["Görsel Oluşturma", "Cartoon Dönüşümü", "Etsy Metadata"]
+tabs = st.tabs(tab_names)
+
+# Aktif sekmeyi ayarla
+active_tab_index = tab_names.index(st.session_state.active_tab)
+
+# Sekmeleri göster
+with tabs[0]:
+    if st.session_state.active_tab == 'Görsel Oluşturma':
+        show_image_generation()
+    else:
+        st.button("Bu Sekmeye Geç", key="switch_to_tab1", on_click=lambda: setattr(st.session_state, 'active_tab', 'Görsel Oluşturma') or st.rerun())
+
+with tabs[1]:
+    if st.session_state.active_tab == 'Cartoon Dönüşümü':
+        show_cartoon_conversion()
+    else:
+        st.button("Bu Sekmeye Geç", key="switch_to_tab2", on_click=lambda: setattr(st.session_state, 'active_tab', 'Cartoon Dönüşümü') or st.rerun())
+
+with tabs[2]:
+    if st.session_state.active_tab == 'Etsy Metadata':
+        show_etsy_metadata()
+    else:
+        st.button("Bu Sekmeye Geç", key="switch_to_tab3", on_click=lambda: setattr(st.session_state, 'active_tab', 'Etsy Metadata') or st.rerun())
 
 # Footer
 st.markdown("---")
