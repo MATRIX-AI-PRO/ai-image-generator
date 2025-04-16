@@ -160,8 +160,11 @@ with tab1:
         selected_size = st.selectbox("Görsel Boyutu", size_options)
         
         # Görsel kalitesi
-        quality_options = ["standart", "hd"]
-        selected_quality = st.selectbox("Görsel Kalitesi", quality_options)
+        quality_options_display = ["Standart", "HD"]
+        quality_options_api = ["standard", "hd"]
+        quality_index = st.selectbox("Görsel Kalitesi", quality_options_display)
+        selected_quality = quality_options_api[quality_options_display.index(quality_index)]
+
         
         # Görsel sayısı
         num_images = st.slider("Oluşturulacak Görsel Sayısı", 1, 4, 2)
