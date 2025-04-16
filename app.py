@@ -7,25 +7,27 @@ from PIL import Image
 from openai import OpenAI
 import random
 from datetime import datetime
-import requests
+import requests  # Eksik import eklendi
 
-# Sayfa yapılandırması
-st.set_page_config(page_title="AI Görsel Üretim Aracı", layout="wide")
+# Session state kontrolü
+if 'selected_image' not in st.session_state:
+    st.session_state.selected_image = None
 
-# OpenAI API istemcisini başlat
-client = OpenAI(api_key=st.secrets["openai_api_key"])
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = 'Görsel Oluşturma'
 
-# Session state başlatma
 if 'realistic_images' not in st.session_state:
     st.session_state.realistic_images = []
 if 'cartoon_images' not in st.session_state:
     st.session_state.cartoon_images = []
 if 'realistic_prompt' not in st.session_state:
     st.session_state.realistic_prompt = ""
-if 'selected_image' not in st.session_state:
-    st.session_state.selected_image = None
-if 'show_cartoon_section' not in st.session_state:
-    st.session_state.show_cartoon_section = False
+
+# Sayfa yapılandırması
+st.set_page_config(page_title="AI Görsel Üretim Aracı", layout="wide")
+
+# OpenAI API istemcisini başlat
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # Kategori ve alt kategoriler
 nis_kategorileri = {
@@ -289,24 +291,6 @@ st.markdown("""
         border-radius: 5px;
         margin-bottom: 15px;
     }
-    .cartoon-section {
-        margin-top: 30px;
-        padding: 20px;
-        background-color: #1e1e1e;
-        border-radius: 10px;
-        border-left: 4px solid #ff4b4b;
-    }
-    .image-card {
-        border: 1px solid #333;
-        border-radius: 10px;
-        padding: 10px;
-        margin-bottom: 15px;
-        background-color: #222;
-    }
-    .image-card:hover {
-        border-color: #ff4b4b;
-        box-shadow: 0 0 10px rgba(255, 75, 75, 0.3);
-    }
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
     }
@@ -336,20 +320,35 @@ st.markdown("""
 
 st.markdown("### Gerçekçi Görsel Üretim ve Cartoon Dönüşüm Asistanı")
 
-# Ana sekmeler
-tab1, tab2 = st.tabs(["Görsel Oluşturma & Dönüştürme", "Etsy Metadata"])
-
-with tab1:
+# Fonksiyonlar
+def show_image_generation():
+    """Görsel oluşturma arayüzünü gösterir"""
     st.markdown('<div class="section-title"><h3>Görsel Oluşturma Ayarları</h3></div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
         # Kategori seçimi
-        selected_category = st.selectbox("Kategori Seçin", list(nis_kategorileri.keys()))
+        category_options = [
+            "Aile & Çift Portreleri",
+            "Düğün Portreleri",
+            "Doğum Günü Portreleri",
+            "Mezuniyet Portreleri",
+            "Evcil Hayvan Portreleri",
+            "Özel Anı Portreleri"
+        ]
+        selected_category = st.selectbox("Kategori Seçin", category_options)
         
         # Fikir seçimi
-        selected_idea = st.selectbox("Fikir Seçin", nis_kategorileri[selected_category])
+        idea_options = {
+            "Aile & Çift Portreleri": ["Aile Portresi", "Çift Portresi", "Yıldönümü Portresi", "Aşk Portresi"],
+            "Düğün Portreleri": ["Düğün Anı", "Nikah Töreni", "Düğün Dansı", "Gelin Buketi"],
+            "Doğum Günü Portreleri": ["Doğum Günü Kutlaması", "Pasta Kesimi", "Hediye Açma", "Parti Portresi"],
+            "Mezuniyet Portreleri": ["Diploma Töreni", "Kep Atma", "Mezuniyet Cübbesi", "Başarı Portresi"],
+            "Evcil Hayvan Portreleri": ["Köpek Portresi", "Kedi Portresi", "Evcil Hayvan ve Sahip", "Sevimli Anı"],
+            "Özel Anı Portreleri": ["Tatil Anısı", "Seyahat Portresi", "Özel Gün", "Aile Buluşması"]
+        }
+        selected_idea = st.selectbox("Fikir Seçin", idea_options[selected_category])
         
         # Etnik köken/görünüm seçimi
         ethnicity_options = [
@@ -393,125 +392,109 @@ with tab1:
         quality_options_api = ["standard", "hd"]
         quality_index = st.selectbox("Görsel Kalitesi", quality_options_display)
         selected_quality = quality_options_api[quality_options_display.index(quality_index)]
+
         
         # Görsel sayısı
         num_images = st.slider("Oluşturulacak Görsel Sayısı", 1, 4, 2)
         
-        # Hızlı prompt oluşturma
-        st.markdown("#### 🚀 Hızlı Prompt Oluşturma")
-        
-        if st.button("Hızlı Prompt Oluştur"):
-            with st.spinner("Prompt oluşturuluyor..."):
-                ethnicity_prompt = ""
-                if selected_ethnicity != "Karışık/Rastgele":
-                    ethnicity_prompt = f", {selected_ethnicity} appearance"
+        # Prompt oluşturma butonu
+        if st.button("Promptları Oluştur"):
+            # GPT ile prompt oluşturma
+            ethnicity_prompt = ""
+            if selected_ethnicity != "Karışık/Rastgele":
+                ethnicity_prompt = f", {selected_ethnicity} appearance"
+            
+            system_prompt = """
+            Sen profesyonel bir fotoğrafçı ve görsel sanatçısısın. 
+            DALL-E için gerçekçi, yüksek kaliteli görsel oluşturmak için prompt yazman gerekiyor.
+            Verilen bilgilere dayanarak detaylı, gerçekçi ve estetik bir fotoğraf için prompt oluştur.
+            Prompt İngilizce olmalı ve gerçekçi bir fotoğraf için gerekli tüm detayları içermeli.
+            """
+            
+            user_prompt = f"""
+            Kategori: {selected_category}
+            Fikir: {selected_idea}
+            Görünüm: {selected_ethnicity}
+            Stil: {selected_style}
+            Ek detaylar: {additional_details}
+            
+            Lütfen bu bilgilere dayanarak gerçekçi, yüksek kaliteli bir fotoğraf için DALL-E prompt'u oluştur.
+            Prompt, fotoğraf çekimi için gerekli tüm detayları içermeli: kompozisyon, aydınlatma, atmosfer, renk şeması, vb.
+            Prompt'un başında "A photorealistic image" ifadesi olsun ve AI tarafından oluşturulmuş görüntü hissi vermemesi için direktifler ekle.
+            """
+            
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=300
+                )
                 
-                # Basitleştirilmiş prompt oluşturma
-                realistic_prompt = f"A photorealistic image of {selected_idea}{ethnicity_prompt}, in {selected_style} style. {additional_details}"
+                realistic_prompt = response.choices[0].message.content.strip()
                 st.session_state.realistic_prompt = realistic_prompt
                 
-                st.success("Prompt oluşturuldu!")
-                st.code(realistic_prompt)
+                st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                st.markdown("#### Oluşturulan Gerçekçi Prompt:")
+                st.text_area("", realistic_prompt, height=150, key="prompt_result")
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"Prompt oluşturulurken bir hata oluştu: {e}")
         
-        # Detaylı prompt oluşturma
-        st.markdown("#### 🎯 Detaylı Prompt Oluşturma")
-        
-        if st.button("Detaylı Prompt Oluştur"):
-            with st.spinner("Detaylı prompt oluşturuluyor..."):
-                # GPT ile prompt oluşturma
-                system_prompt = """
-                Sen profesyonel bir fotoğrafçı ve görsel sanatçısısın. 
-                DALL-E için gerçekçi, yüksek kaliteli görsel oluşturmak için prompt yazman gerekiyor.
-                Verilen bilgilere dayanarak detaylı, gerçekçi ve estetik bir fotoğraf için prompt oluştur.
-                Prompt İngilizce olmalı ve gerçekçi bir fotoğraf için gerekli tüm detayları içermeli.
-                """
-                
-                user_prompt = f"""
-                Kategori: {selected_category}
-                Fikir: {selected_idea}
-                Görünüm: {selected_ethnicity}
-                Stil: {selected_style}
-                Ek detaylar: {additional_details}
-                
-                Lütfen bu bilgilere dayanarak gerçekçi, yüksek kaliteli bir fotoğraf için DALL-E prompt'u oluştur.
-                Prompt, fotoğraf çekimi için gerekli tüm detayları içermeli: kompozisyon, aydınlatma, atmosfer, renk şeması, vb.
-                Prompt'un başında "A photorealistic image" ifadesi olsun ve AI tarafından oluşturulmuş görüntü hissi vermemesi için direktifler ekle.
-                """
-                
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_prompt}
-                        ],
-                        max_tokens=300
+        # Görselleri oluşturma butonu
+        if st.button("Görselleri Oluştur") and st.session_state.realistic_prompt:
+            try:
+                with st.spinner("Görseller oluşturuluyor..."):
+                    width, height = map(int, selected_size.split('x'))
+                    
+                    response = client.images.generate(
+                        model="dall-e-3",
+                        prompt=st.session_state.realistic_prompt,
+                        n=num_images,
+                        size=selected_size,
+                        quality=selected_quality
                     )
                     
-                    realistic_prompt = response.choices[0].message.content.strip()
-                    st.session_state.realistic_prompt = realistic_prompt
+                    images = []
+                    for data in response.data:
+                        image_url = data.url
+                        images.append(image_url)
                     
-                    st.success("Detaylı prompt oluşturuldu!")
-                    st.code(realistic_prompt)
+                    st.session_state.realistic_images = images
                     
-                except Exception as e:
-                    st.error(f"Prompt oluşturulurken bir hata oluştu: {e}")
+                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                    st.markdown("#### Oluşturulan Gerçekçi Görseller:")
+                    
+                    # Görselleri göster
+                    image_cols = st.columns(min(num_images, 2))
+                    for i, image_url in enumerate(st.session_state.realistic_images):
+                        col_idx = i % len(image_cols)
+                        with image_cols[col_idx]:
+                            st.image(image_url, use_column_width=True)
+                            if st.button(f"Bu Görseli Seç #{i+1}", key=f"select_img_{i}"):
+                                st.session_state.selected_image = image_url
+                                st.session_state.active_tab = 'Cartoon Dönüşümü'
+                                st.success(f"Görsel #{i+1} seçildi! Cartoon Dönüşümü sekmesine geçebilirsiniz.")
+                                st.rerun()  # Sayfayı yeniden yükle
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+            except Exception as e:
+                st.error(f"Görseller oluşturulurken bir hata oluştu: {e}")
+
+def show_cartoon_conversion():
+    """Cartoon dönüşüm arayüzünü gösterir"""
+    st.markdown('<div class="section-title"><h3>Cartoon Stiline Dönüştürme</h3></div>', unsafe_allow_html=True)
     
-    # Görselleri oluşturma butonu - Ortalanmış
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("👉 GÖRSELLERİ OLUŞTUR 👈", use_container_width=True):
-            if not st.session_state.realistic_prompt:
-                st.warning("Lütfen önce bir prompt oluşturun.")
-            else:
-                try:
-                    with st.spinner("Görseller oluşturuluyor... Bu işlem biraz zaman alabilir."):
-                        response = client.images.generate(
-                            model="dall-e-3",
-                            prompt=st.session_state.realistic_prompt,
-                            n=num_images,
-                            size=selected_size,
-                            quality=selected_quality
-                        )
-                        
-                        images = []
-                        for data in response.data:
-                            image_url = data.url
-                            images.append(image_url)
-                        
-                        st.session_state.realistic_images = images
-                        
-                        st.success(f"{len(images)} görsel başarıyla oluşturuldu!")
-                        
-                except Exception as e:
-                    st.error(f"Görseller oluşturulurken bir hata oluştu: {e}")
-    
-    # Oluşturulan görselleri göster
-    if st.session_state.realistic_images:
-        st.markdown("### 🖼️ Oluşturulan Görseller")
-        
-        # Görselleri göster
-        cols = st.columns(min(len(st.session_state.realistic_images), 2))
-        for i, image_url in enumerate(st.session_state.realistic_images):
-            col_idx = i % len(cols)
-            with cols[col_idx]:
-                st.markdown(f'<div class="image-card">', unsafe_allow_html=True)
-                st.image(image_url, use_container_width=True)
-                if st.button(f"Bu Görseli Cartoon'a Dönüştür #{i+1}", key=f"convert_{i}"):
-                    st.session_state.selected_image = image_url
-                    st.session_state.show_cartoon_section = True
-                st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Cartoon dönüşüm bölümü
-    if st.session_state.show_cartoon_section and st.session_state.selected_image:
-        st.markdown('<div class="cartoon-section">', unsafe_allow_html=True)
-        st.markdown("## 🎭 Cartoon Dönüşümü")
-        
+    if st.session_state.selected_image:
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("#### Seçilen Gerçekçi Görsel")
-            st.image(st.session_state.selected_image, use_container_width=True)
+            st.image(st.session_state.selected_image, use_column_width=True)
         
         with col2:
             st.markdown("#### Cartoon Stili Seçimi")
@@ -529,7 +512,7 @@ with tab1:
                 "Watercolor Illustration"
             ]
             
-            selected_cartoon_style = st.selectbox("Cartoon Stili", cartoon_style_options, key="cartoon_style")
+            selected_cartoon_style = st.selectbox("Cartoon Stili", cartoon_style_options)
             
             # Stil detayları
             style_details = {
@@ -549,14 +532,13 @@ with tab1:
             
             additional_style_details = st.text_area(
                 "Ek Stil Detayları (İsteğe Bağlı)",
-                placeholder="Örn: pastel renkler, abartılı yüz ifadeleri...",
-                key="additional_style"
+                placeholder="Örn: pastel renkler, abartılı yüz ifadeleri..."
             )
             
             # Dönüştürme butonu
-            if st.button("🔄 Cartoon Stiline Dönüştür", use_container_width=True):
+            if st.button("Cartoon Stiline Dönüştür"):
                 try:
-                    with st.spinner("Görsel dönüştürülüyor... Bu işlem biraz zaman alabilir."):
+                    with st.spinner("Görsel dönüştürülüyor..."):
                         # Gerçekçi görseli cartoon stiline dönüştürme promptu
                         style_prompt = f"""
                         Transform this realistic image into a {selected_cartoon_style} cartoon style. 
@@ -583,33 +565,29 @@ with tab1:
                         })
                         
                         st.success("Görsel başarıyla cartoon stiline dönüştürüldü!")
+                        st.image(cartoon_image_url, use_column_width=True)
+                        
+                        # Etsy Metadata sekmesine geçiş butonu
+                        if st.button("Etsy Metadata'ya Geç"):
+                            st.session_state.active_tab = 'Etsy Metadata'
+                            st.rerun()
                         
                 except Exception as e:
                     st.error(f"Görsel dönüştürülürken bir hata oluştu: {e}")
+    else:
+        st.info("Lütfen önce 'Görsel Oluşturma' sekmesinden bir görsel oluşturun ve seçin.")
+        if st.button("Görsel Oluşturmaya Dön"):
+            st.session_state.active_tab = 'Görsel Oluşturma'
+            st.rerun()
         
-        # Dönüştürülen görselleri göster
-        if st.session_state.cartoon_images:
-            st.markdown("#### Son Dönüştürülen Cartoon")
-            st.image(st.session_state.cartoon_images[-1]["url"], use_container_width=True)
-            
-            if st.button("📊 Etsy Metadata Oluşturmaya Geç"):
-                st.switch_page("Etsy Metadata")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Geçmiş dönüşümler
-        if len(st.session_state.cartoon_images) > 1:
-            st.markdown("### 📜 Önceki Dönüşümler")
-            
-            # Önceki dönüşümleri göster (en son olanı hariç)
-            prev_images = st.session_state.cartoon_images[:-1]
-            cols = st.columns(min(len(prev_images), 3))
-            for i, img_data in enumerate(prev_images):
-                col_idx = i % len(cols)
-                with cols[col_idx]:
-                    st.image(img_data["url"], caption=f"{img_data['style']} - {img_data['timestamp']}", width=200)
+    # Geçmiş dönüşümler
+    if st.session_state.cartoon_images:
+        st.markdown("#### Önceki Dönüşümler")
+        for i, img_data in enumerate(st.session_state.cartoon_images):
+            st.image(img_data["url"], caption=f"{img_data['style']} - {img_data['timestamp']}", width=200)
 
-with tab2:
+def show_etsy_metadata():
+    """Etsy metadata arayüzünü gösterir"""
     st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
     
     if st.session_state.cartoon_images:
@@ -638,115 +616,62 @@ with tab2:
                 ["Dijital İndirme (JPG & PNG)", "Dijital İndirme + Baskı", "Sadece Baskı"]
             )
         
-# Metadata oluştur butonu
-if st.button("Etsy Metadatası Oluştur"):
-    metadata = {
-        "title": product_title,
-        "description": product_description,
-        "tags": tags.split(","),
-        "price": price,
-        "delivery_format": delivery_format,
-        "style": st.session_state.cartoon_images[-1]["style"],
-        "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "image_url": st.session_state.cartoon_images[-1]["url"]
-    }
-    
-    # Metadatayı JSON olarak göster
-    st.markdown('<div class="result-container">', unsafe_allow_html=True)
-    st.markdown("#### Oluşturulan Etsy Metadata:")
-    st.json(metadata)
-    
-    # İndirme butonu
-    json_str = json.dumps(metadata, indent=2)
-    b64 = base64.b64encode(json_str.encode()).decode()
-    href = f'<a href="data:application/json;base64,{b64}" download="etsy_metadata.json">Metadata Dosyasını İndir</a>'
-    st.markdown(href, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # GPT ile otomatik ürün açıklaması oluşturma
-    st.markdown("#### 🤖 AI ile Gelişmiş Ürün Açıklaması")
-    
-    if st.button("Gelişmiş Ürün Açıklaması Oluştur"):
-        with st.spinner("Gelişmiş açıklama oluşturuluyor..."):
-            try:
-                system_prompt = """
-                Sen bir Etsy satıcısısın ve dijital sanat ürünleri satıyorsun.
-                Müşterinin fotoğrafından özel olarak oluşturulan cartoon tarzı portreler için
-                ikna edici, SEO dostu ve detaylı bir ürün açıklaması yazman gerekiyor.
-                """
-                
-                user_prompt = f"""
-                Ürün: {product_title}
-                Tarz: {st.session_state.cartoon_images[-1]['style']}
-                Teslimat: {delivery_format}
-                Fiyat: ${price}
-                
-                Lütfen bu ürün için aşağıdakileri içeren ikna edici bir Etsy ürün açıklaması yaz:
-                1. Dikkat çekici bir giriş
-                2. Ürünün benzersiz özellikleri
-                3. Sipariş sürecinin açıklaması
-                4. Teslimat detayları
-                5. Neden bu ürünün mükemmel bir hediye olduğu
-                6. Müşteri memnuniyeti garantisi
-                
-                Açıklama, SEO için anahtar kelimeler içermeli ve duygusal bağlantı kurmalı.
-                """
-                
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=800
-                )
-                
-                enhanced_description = response.choices[0].message.content.strip()
-                
-                st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                st.markdown("#### Gelişmiş Ürün Açıklaması:")
-                st.markdown(enhanced_description)
-                
-                # Kopyalama butonu
-                st.text_area("Açıklamayı Kopyala", enhanced_description, height=300)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"Açıklama oluşturulurken bir hata oluştu: {e}")
-else:
-    st.info("Lütfen önce 'Görsel Oluşturma & Dönüştürme' sekmesinden bir görseli cartoon stiline dönüştürün.")
-    if st.button("Görsel Oluşturmaya Dön"):
-        st.session_state.active_tab = 'Görsel Oluşturma'
-        st.rerun()
+        # Metadata oluştur butonu
+        if st.button("Etsy Metadatası Oluştur"):
+            metadata = {
+                "title": product_title,
+                "description": product_description,
+                "tags": tags.split(","),
+                "price": price,
+                "delivery_format": delivery_format,
+                "style": st.session_state.cartoon_images[-1]["style"],
+                "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "image_url": st.session_state.cartoon_images[-1]["url"]
+            }
+            
+            # Metadatayı JSON olarak göster
+            st.markdown('<div class="result-container">', unsafe_allow_html=True)
+            st.markdown("#### Oluşturulan Etsy Metadata:")
+            st.json(metadata)
+            
+            # İndirme butonu
+            json_str = json.dumps(metadata, indent=2)
+            b64 = base64.b64encode(json_str.encode()).decode()
+            href = f'<a href="data:application/json;base64,{b64}" download="etsy_metadata.json">Metadata Dosyasını İndir</a>'
+            st.markdown(href, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+    else:
+        st.info("Lütfen önce 'Cartoon Dönüşümü' sekmesinden bir görseli cartoon stiline dönüştürün.")
+        if st.button("Cartoon Dönüşümüne Dön"):
+            st.session_state.active_tab = 'Cartoon Dönüşümü'
+            st.rerun()
 
-# Görsel üretim ipuçları
-st.markdown("---")
-st.markdown("### 🚀 Görsel Üretimi Hızlandırma İpuçları")
+# Ana sekmeler
+tab_names = ["Görsel Oluşturma", "Cartoon Dönüşümü", "Etsy Metadata"]
+tabs = st.tabs(tab_names)
 
-tips_expander = st.expander("İpuçlarını Göster")
-with tips_expander:
-    st.markdown("""
-    #### 1. Prompt Optimizasyonu
-    - **Kısa ve net promptlar kullanın**: Çok uzun promptlar yerine, önemli detaylara odaklanan kısa promptlar daha hızlı sonuç verir.
-    - **Anahtar kelimeleri stratejik kullanın**: "photorealistic", "high quality", "detailed" gibi anahtar kelimeleri başta kullanın.
-    
-    #### 2. Görsel Ayarları
-    - **Daha küçük boyutlar seçin**: 1024x1024 boyutu daha hızlı sonuç üretir.
-    - **Standart kalite** HD kaliteden daha hızlıdır.
-    
-    #### 3. İş Akışı İyileştirmeleri
-    - **Hızlı prompt oluşturma** özelliğini kullanın.
-    - Aynı anda çok sayıda görsel oluşturmak yerine, 1-2 görsel oluşturup beğendiğinizi seçin.
-    
-    #### 4. Teknik İyileştirmeler
-    - Uygulamayı kullanırken diğer sekmeleri kapatın.
-    - İnternet bağlantınızın güçlü olduğundan emin olun.
-    - Tarayıcı önbelleğini düzenli olarak temizleyin.
-    
-    #### 5. Şablon Kullanımı
-    - Başarılı bulduğunuz promptları kaydedin ve şablon olarak kullanın.
-    - Kategori bazlı hazır promptlar oluşturun ve sadece küçük değişiklikler yapın.
-    """)
+# Aktif sekmeyi ayarla
+active_tab_index = tab_names.index(st.session_state.active_tab)
+
+# Sekmeleri göster
+with tabs[0]:
+    if st.session_state.active_tab == 'Görsel Oluşturma':
+        show_image_generation()
+    else:
+        st.button("Bu Sekmeye Geç", key="switch_to_tab1", on_click=lambda: setattr(st.session_state, 'active_tab', 'Görsel Oluşturma') or st.rerun())
+
+with tabs[1]:
+    if st.session_state.active_tab == 'Cartoon Dönüşümü':
+        show_cartoon_conversion()
+    else:
+        st.button("Bu Sekmeye Geç", key="switch_to_tab2", on_click=lambda: setattr(st.session_state, 'active_tab', 'Cartoon Dönüşümü') or st.rerun())
+
+with tabs[2]:
+    if st.session_state.active_tab == 'Etsy Metadata':
+        show_etsy_metadata()
+    else:
+        st.button("Bu Sekmeye Geç", key="switch_to_tab3", on_click=lambda: setattr(st.session_state, 'active_tab', 'Etsy Metadata') or st.rerun())
 
 # Footer
 st.markdown("---")
