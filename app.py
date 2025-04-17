@@ -1100,3 +1100,5 @@ if st.session_state.image_history and st.button("Görsel Geçmişini Temizle", k
     st.session_state.notification = "Görsel geçmişi temizlendi"
     st.session_state.notification_type = "info"
     st.experimental_rerun()
+
+
