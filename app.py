@@ -851,32 +851,6 @@ else:
     if not selected_style:
         st.info("Lütfen bir çizgi film stili seçin.")
 
-# Örnek dönüşümler
-st.markdown("### Örnek Dönüşümler")
-st.markdown("Aşağıda bazı örnek dönüşümleri görebilirsiniz:")
-
-example_cols = st.columns(3)
-
-# Örnek görselleri göster (eğer dosyalar mevcutsa)
-try:
-    with example_cols[0]:
-        st.image("https://i.imgur.com/JKwFnGj.jpg", caption="Pixar 3D Stil Örneği", use_column_width=True)
-    
-    with example_cols[1]:
-        st.image("https://i.imgur.com/R5LgkXc.jpg", caption="Disney 2D Stil Örneği", use_column_width=True)
-    
-    with example_cols[2]:
-        st.image("https://i.imgur.com/Pn9Vw7S.jpg", caption="Anime Stil Örneği", use_column_width=True)
-except:
-    # Dosyalar mevcut değilse örnek görseller için yer tutucular göster
-    with example_cols[0]:
-        st.markdown("*Pixar 3D Stil Örneği*")
-    
-    with example_cols[1]:
-        st.markdown("*Disney 2D Stil Örneği*")
-    
-    with example_cols[2]:
-        st.markdown("*Anime Stil Örneği*")
 
 # Stil özellikleri
 st.markdown("### Stil Özellikleri")
