@@ -663,17 +663,17 @@ with tab1:
                 
                 col1, col2 = st.columns(2)
                # Gerçekçi görsel oluşturma sekmesindeki butonları güncelleyelim
-with col1:
-    # Çizgi filme dönüştürme butonu
-    if st.button(f"Çizgi Filme Dönüştür #{i+1}", key=f"convert_{i}"):
-        set_image_to_convert(image_url)
-        st.success("Görsel dönüştürme için seçildi. Lütfen 'Çizgi Film Dönüştürme' sekmesine geçin.")
+            with col1:
+                # Çizgi filme dönüştürme butonu
+            if st.button(f"Çizgi Filme Dönüştür #{i+1}", key=f"convert_{i}"):
+                set_image_to_convert(image_url)
+            st.success("Görsel dönüştürme için seçildi. Lütfen 'Çizgi Film Dönüştürme' sekmesine geçin.")
 
-with col2:
-    # Etsy için kullanma butonu
-    if st.button(f"Etsy İçin Kullan #{i+1}", key=f"etsy_{i}"):
-        set_image_for_etsy(image_url)
-        st.success("Görsel Etsy için seçildi. Lütfen 'Etsy Metadata' sekmesine geçin.")
+            with col2:
+                # Etsy için kullanma butonu
+            if st.button(f"Etsy İçin Kullan #{i+1}", key=f"etsy_{i}"):
+                set_image_for_etsy(image_url)
+               st.success("Görsel Etsy için seçildi. Lütfen 'Etsy Metadata' sekmesine geçin.")
                 
                 # İndirme butonu
                 image_data = download_image(image_url)
