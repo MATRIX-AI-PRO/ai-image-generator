@@ -263,7 +263,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("### Realistic Image Generation and Cartoon Conversion Assistant")
+st.markdown("### Realistic Image Generation Assistant")
 
 # Function to select an image and switch tabs
 def select_image(image_url, next_tab):
@@ -458,10 +458,6 @@ def show_image_generation():
                 <div class="step-number">2</div>
                 <div class="step-text">Create realistic images with OpenAI</div>
             </div>
-            <div class="progress-step">
-                <div class="step-number">3</div>
-                <div class="step-text">Convert to cartoon style</div>
-            </div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -502,6 +498,7 @@ def show_image_generation():
             Please create a prompt for a realistic, high-quality photo based on this information.
             The prompt should include all necessary details for the photo shoot: composition, lighting, atmosphere, color scheme, etc.
             Start the prompt with "A photorealistic image" and include directives to avoid AI-generated image feel.
+            Make sure this is a prompt for a REALISTIC photo, not a cartoon or illustration.
             """
             
             try:
@@ -538,7 +535,7 @@ def show_image_generation():
         # Generate images button
         if st.button("Generate Images") and st.session_state.realistic_prompt:
             try:
-                with st.spinner("Generating images..."):
+                with st.spinner("Generating realistic images..."):
                     # Add loading animation
                     st.markdown("""
                     <div class="loading-animation">
@@ -548,10 +545,10 @@ def show_image_generation():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Using OpenAI API to generate images
+                    # Using OpenAI API to generate REALISTIC images
                     response = client.images.generate(
                         model="dall-e-3",
-                        prompt=st.session_state.realistic_prompt,
+                        prompt=st.session_state.realistic_prompt + " Make sure this is a photorealistic image, not a cartoon or illustration. Use photographic style with realistic lighting and textures.",
                         n=1,  # DALL-E 3 only supports n=1
                         size=selected_size,
                         quality=selected_quality
@@ -565,19 +562,18 @@ def show_image_generation():
                     st.session_state.realistic_images = images
                     
                     st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                    st.markdown("#### Generated Images:")
+                    st.markdown("#### Generated Realistic Images:")
                     
                     # Show images in a modern gallery
                     st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
                     for i, image_url in enumerate(st.session_state.realistic_images):
                         col1, col2 = st.columns([3, 1])
                         with col1:
-                            st.image(image_url, use_column_width=True, caption=f"Image #{i+1}")
+                            st.image(image_url, use_column_width=True, caption=f"Realistic Image #{i+1}")
                         with col2:
                             st.markdown("<br><br>", unsafe_allow_html=True)
-                            # FIXED: Use a custom function to handle image selection and tab switching
                             if st.button(f"Select Image #{i+1}", key=f"select_img_{i}"):
-                                select_image(image_url, 'Cartoon Conversion')
+                                select_image(image_url, 'Etsy Metadata')
                     st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -586,139 +582,21 @@ def show_image_generation():
                 st.error(f"Error generating images: {str(e)}")
                 st.error("Please try a different prompt or check your API key.")
 
-def show_cartoon_conversion():
-    """Shows the cartoon conversion interface"""
-    st.markdown('<div class="section-title"><h3>Convert to Cartoon Style</h3></div>', unsafe_allow_html=True)
-    
-    if st.session_state.selected_image:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### Selected Realistic Image")
-            st.image(st.session_state.selected_image, use_column_width=True)
-        
-        with col2:
-            st.markdown("#### Cartoon Style Selection")
-            
-            cartoon_style_options = [
-                "Pixar 3D",
-                "Disney 2D Animation",
-                "DreamWorks",
-                "Anime",
-                "South Park",
-                "The Simpsons",
-                "Studio Ghibli",
-                "Claymation",
-                "Comic Book",
-                "Watercolor Illustration"
-            ]
-            
-            selected_cartoon_style = st.selectbox("Cartoon Style", cartoon_style_options)
-            
-            # Style details
-            style_details = {
-                "Pixar 3D": "3D Pixar animation style with detailed textures, expressive features, and warm lighting",
-                "Disney 2D Animation": "Classic Disney 2D animation style with smooth lines, vibrant colors, and expressive characters",
-                "DreamWorks": "DreamWorks animation style with exaggerated features, dynamic poses, and rich texturing",
-                "Anime": "Japanese anime style with large eyes, simplified features, and vibrant colors",
-                "South Park": "South Park style with simple shapes, flat colors, and minimalist design",
-                "The Simpsons": "The Simpsons style with yellow skin, overbite, and simplified cartoon features",
-                "Studio Ghibli": "Studio Ghibli style with detailed backgrounds, soft colors, and whimsical elements",
-                "Claymation": "Claymation style with textured surfaces, slightly imperfect shapes, and warm tones",
-                "Comic Book": "Comic book style with bold outlines, flat colors, and action-oriented composition",
-                "Watercolor Illustration": "Watercolor illustration style with soft edges, transparent colors, and artistic brush strokes"
-            }
-            
-            st.markdown(f"**Style Details:** {style_details[selected_cartoon_style]}")
-            
-            additional_style_details = st.text_area(
-                "Additional Style Details (Optional)",
-                placeholder="E.g.: pastel colors, exaggerated facial expressions..."
-            )
-            
-            # Convert button
-            if st.button("Convert to Cartoon Style"):
-                try:
-                    with st.spinner("Converting image..."):
-                        # Add loading animation
-                        st.markdown("""
-                        <div class="loading-animation">
-                            <div class="loading-dot"></div>
-                            <div class="loading-dot"></div>
-                            <div class="loading-dot"></div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Prompt for converting realistic image to cartoon style
-                        style_prompt = f"""
-                        Transform this realistic image into a {selected_cartoon_style} cartoon style. 
-                        {style_details[selected_cartoon_style]}. 
-                        {additional_style_details}
-                        Maintain the same composition, characters, and scene, but fully convert to cartoon style.
-                        Make it look professional, high-quality, and authentic to the {selected_cartoon_style} style.
-                        """
-                        
-                        # Generate a new cartoon image based on the description of the realistic image
-                        response = client.images.generate(
-                            model="dall-e-3",
-                            prompt=style_prompt,
-                            n=1,
-                            size="1024x1024",
-                            quality="standard"
-                        )
-                        
-                        cartoon_image_url = response.data[0].url
-                        st.session_state.cartoon_images.append({
-                            "url": cartoon_image_url,
-                            "style": selected_cartoon_style,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-                        
-                        st.success("Image successfully converted to cartoon style!")
-                        st.image(cartoon_image_url, use_column_width=True)
-                        
-                        # FIXED: Button to go to Etsy Metadata tab using the custom function
-                        if st.button("Go to Etsy Metadata"):
-                            select_image(cartoon_image_url, 'Etsy Metadata')
-                        
-                except Exception as e:
-                    st.error(f"Error converting image: {str(e)}")
-                    st.error("Please try a different image or style.")
-    else:
-        st.info("Please first create and select an image from the 'Image Generation' tab.")
-        if st.button("Go to Image Generation"):
-            st.session_state.active_tab = 'Image Generation'
-            st.rerun()
-        
-    # Previous conversions
-    if st.session_state.cartoon_images:
-        st.markdown('<div class="section-title"><h3>Previous Conversions</h3></div>', unsafe_allow_html=True)
-        st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
-        for i, img_data in enumerate(st.session_state.cartoon_images):
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.image(img_data["url"], use_column_width=True, caption=f"{img_data['style']} - {img_data['timestamp']}")
-            with col2:
-                # FIXED: Button to use this cartoon for Etsy metadata
-                if st.button(f"Use for Etsy #{i+1}", key=f"use_etsy_{i}"):
-                    select_image(img_data["url"], 'Etsy Metadata')
-        st.markdown('</div>', unsafe_allow_html=True)
-
 def show_etsy_metadata():
     """Shows the Etsy metadata interface"""
     st.markdown('<div class="section-title"><h3>Generate Etsy Metadata</h3></div>', unsafe_allow_html=True)
     
-    if st.session_state.cartoon_images:
-        st.markdown("#### Last Converted Image")
-        st.image(st.session_state.cartoon_images[-1]["url"], width=300)
+    if st.session_state.selected_image:
+        st.markdown("#### Selected Realistic Image")
+        st.image(st.session_state.selected_image, width=300)
         
         col1, col2 = st.columns(2)
         
         with col1:
-            product_title = st.text_input("Product Title", f"Custom {st.session_state.cartoon_images[-1]['style']} Style Portrait")
+            product_title = st.text_input("Product Title", "Custom Portrait from Photo")
             product_description = st.text_area(
                 "Product Description", 
-                f"""Custom {st.session_state.cartoon_images[-1]['style']} style digital portrait created from your real photo.
+                """Custom digital portrait created from your photo.
                 Completely personalized, delivered as a high-resolution digital file.
                 Perfect for printing, instantly downloadable."""
             )
@@ -726,7 +604,7 @@ def show_etsy_metadata():
         with col2:
             tags = st.text_input(
                 "Tags (comma separated)",
-                f"custom portrait, {st.session_state.cartoon_images[-1]['style'].lower()}, digital art, personalized gift, family portrait"
+                "custom portrait, digital art, personalized gift, family portrait, photo to art"
             )
             price = st.number_input("Price ($)", min_value=5.0, value=19.99, step=1.0)
             delivery_format = st.selectbox(
@@ -752,9 +630,8 @@ def show_etsy_metadata():
                     "tags": tags.split(","),
                     "price": price,
                     "delivery_format": delivery_format,
-                    "style": st.session_state.cartoon_images[-1]["style"],
                     "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "image_url": st.session_state.cartoon_images[-1]["url"]
+                    "image_url": st.session_state.selected_image
                 }
                 
                 # Show metadata as JSON
@@ -775,14 +652,18 @@ def show_etsy_metadata():
                 
                 seo_suggestions = [
                     "Use all 13 tags allowed by Etsy for maximum visibility",
-                    f"Include '{st.session_state.cartoon_images[-1]['style']}' in your title for better search matching",
+                    "Include 'custom portrait' in your title for better search matching",
                     "Add 'personalized gift' as it's a high-search term",
                     "Include specific occasions like 'birthday gift' or 'anniversary present'",
                     "Mention 'custom portrait' as it's a popular search term",
-                    "Use long-tail keywords like 'family cartoon portrait' for better targeting",
+                    "Use long-tail keywords like 'family portrait from photo' for better targeting",
                     "Include relevant seasonal keywords during holidays",
                     "Add material terms like 'digital download' or 'printable art'",
-                    "Mention turnaround time in your description for better customer expectations"
+                    "Mention turnaround time in your description for better customer expectations",
+                    "Use keywords that match what buyers are searching for",
+                    "Include variations of your main keywords (portrait, portraits, portraiture)",
+                    "Add attributes like 'handmade' or 'custom made' to increase visibility",
+                    "Consider using trending keywords related to your product category"
                 ]
                 
                 for suggestion in seo_suggestions:
@@ -801,7 +682,11 @@ def show_etsy_metadata():
                     "Include customer testimonials in your description",
                     "Offer rush delivery as an upgrade option",
                     "Create holiday-specific promotions",
-                    "Offer different size options at different price points"
+                    "Offer different size options at different price points",
+                    "Provide before/after examples to show your work quality",
+                    "Create gift certificates for customers to purchase for others",
+                    "Offer framing options as an additional service",
+                    "Create a loyalty program for returning customers"
                 ]
                 
                 for tip in marketing_tips:
@@ -810,13 +695,13 @@ def show_etsy_metadata():
                 st.markdown('</div>', unsafe_allow_html=True)
             
     else:
-        st.info("Please first convert an image to cartoon style in the 'Cartoon Conversion' tab.")
-        if st.button("Go to Cartoon Conversion"):
-            st.session_state.active_tab = 'Cartoon Conversion'
+        st.info("Please first create and select an image from the 'Image Generation' tab.")
+        if st.button("Go to Image Generation"):
+            st.session_state.active_tab = 'Image Generation'
             st.rerun()
 
 # Main tabs
-tab_names = ["Image Generation", "Cartoon Conversion", "Etsy Metadata"]
+tab_names = ["Image Generation", "Etsy Metadata"]
 tabs = st.tabs(tab_names)
 
 # Set active tab based on session state
@@ -829,18 +714,10 @@ with tabs[0]:
             st.rerun()
 
 with tabs[1]:
-    if st.session_state.active_tab == 'Cartoon Conversion':
-        show_cartoon_conversion()
-    else:
-        if st.button("Switch to Cartoon Conversion", key="switch_to_tab2"):
-            st.session_state.active_tab = 'Cartoon Conversion'
-            st.rerun()
-
-with tabs[2]:
     if st.session_state.active_tab == 'Etsy Metadata':
         show_etsy_metadata()
     else:
-        if st.button("Switch to Etsy Metadata", key="switch_to_tab3"):
+        if st.button("Switch to Etsy Metadata", key="switch_to_tab2"):
             st.session_state.active_tab = 'Etsy Metadata'
             st.rerun()
 
@@ -848,8 +725,7 @@ with tabs[2]:
 st.markdown('<div class="section-title"><h3>How It Works</h3></div>', unsafe_allow_html=True)
 st.markdown("""
 1. **Generate Realistic Images**: Start by selecting a category and idea, then generate a realistic image
-2. **Convert to Cartoon**: Select your favorite image and convert it to your preferred cartoon style
-3. **Create Etsy Metadata**: Generate product details to help sell your custom portraits online
+2. **Create Etsy Metadata**: Generate product details to help sell your custom portraits online
 """)
 
 # Footer
