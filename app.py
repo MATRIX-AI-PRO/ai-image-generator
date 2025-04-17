@@ -35,6 +35,8 @@ if 'notification' not in st.session_state:
     st.session_state.notification = None
 if 'notification_type' not in st.session_state:
     st.session_state.notification_type = None
+if 'selected_style' not in st.session_state:
+    st.session_state.selected_style = None
 
 # OpenAI API istemcisini başlat
 client = OpenAI(api_key=st.secrets["openai_api_key"])
@@ -190,6 +192,51 @@ st.markdown("""
     .download-btn:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(255, 75, 75, 0.4);
+    }
+    .style-card {
+        background-color: #2a2a2a;
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 15px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    .style-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(255, 75, 75, 0.3);
+    }
+    .style-card.selected {
+        border: 2px solid #ff4b4b;
+        box-shadow: 0 0 15px rgba(255, 75, 75, 0.5);
+    }
+    .style-card img {
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    .comparison-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 20px 0;
+        gap: 20px;
+    }
+    .comparison-arrow {
+        font-size: 24px;
+        color: #ff4b4b;
+    }
+    .feature-list {
+        background-color: #2a2a2a;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 10px;
+    }
+    .feature-item {
+        padding: 8px 0;
+        border-bottom: 1px solid #3a3a3a;
+    }
+    .feature-item:last-child {
+        border-bottom: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -689,282 +736,112 @@ with tab1:
                         mime="image/png",
                         key=f"download_{i}"
                     )
-                st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
             
-            st.session_state.notification = f"{num_images} gerçekçi görsel başarıyla oluşturuldu"
+            st.session_state.notification = f"{num_images} görsel başarıyla oluşturuldu"
             st.session_state.notification_type = "success"
             
         except Exception as e:
-            st.session_state.notification = f"Görsel oluşturma hatası: {e}"
+            st.session_state.notification = f"Görsel oluşturma hatası: {str(e)}"
             st.session_state.notification_type = "error"
-            st.error("Lütfen farklı bir prompt deneyin veya API anahtarınızı kontrol edin.")
 
 # 2. Çizgi Film Dönüştürme Sekmesi
 with tab2:
     st.markdown('<div class="section-title"><h3>Çizgi Film Stiline Dönüştürme</h3></div>', unsafe_allow_html=True)
     
-    # Dönüştürülecek görsel var mı kontrol et
-    if st.session_state.selected_image_to_convert:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### Dönüştürülecek Gerçekçi Görsel")
-            st.image(st.session_state.selected_image_to_convert, use_column_width=True)
-        
-        with col2:
-            st.markdown("#### Çizgi Film Stili Seçimi")
-            
-            # Çizgi film stili seçimi
-            cartoon_style_options = [
-                "Pixar 3D",
-                "Disney 2D Animation",
-                "DreamWorks",
-                "Anime",
-                "South Park",
-                "The Simpsons",
-                "Studio Ghibli",
-                "Comic Book",
-                "Watercolor Illustration",
-                "Claymation",
-                "Cartoon Network",
-                "Chibi Style",
-                "Retro Cartoon",
-                "Minimalist Animation",
-                "Caricature"
-            ]
-            selected_style = st.selectbox("Çizgi Film Stili", cartoon_style_options, key="cartoon_style")
-            
-            # Özelleştirme seçenekleri
-            customization = st.text_area(
-                "Özelleştirme (İsteğe Bağlı)", 
-                placeholder="Örn: parlak renkler, daha çocuksu, daha detaylı...",
-                key="cartoon_customization"
-            )
-            
-            # Dönüşüm kalitesi
-            quality_options = ["Standard", "HD"]
-            quality_mapping = {"Standard": "standard", "HD": "hd"}
-            selected_quality_display = st.selectbox("Dönüşüm Kalitesi", quality_options, key="cartoon_quality")
-            selected_quality = quality_mapping[selected_quality_display]
-            
-            # Dönüşüm yöntemi seçimi
-            conversion_method = st.radio(
-                "Dönüşüm Yöntemi",
-                ["Standart (Prompt Tabanlı)", "Gelişmiş (ChatGPT Analizi)"],
-                key="conversion_method"
-            )
-            
-            # Stil önizleme
-            st.markdown("#### Seçilen Stil Örneği")
-            style_examples = {
-                "Pixar 3D": "https://i.imgur.com/8JLGtLF.jpg",
-                "Disney 2D Animation": "https://i.imgur.com/2D9fRpD.jpg",
-                "DreamWorks": "https://i.imgur.com/LGPxVHC.jpg",
-                "Anime": "https://i.imgur.com/qsf4MZL.jpg",
-                "South Park": "https://i.imgur.com/8ETtSP3.jpg",
-                "The Simpsons": "https://i.imgur.com/5BF1EoH.jpg",
-                "Studio Ghibli": "https://i.imgur.com/NJJBqDz.jpg",
-                "Comic Book": "https://i.imgur.com/XzZ9Nbz.jpg",
-                "Watercolor Illustration": "https://i.imgur.com/JM9cMiZ.jpg",
-                "Claymation": "https://i.imgur.com/7R1VgQz.jpg",
-                "Cartoon Network": "https://i.imgur.com/2Uj3T0Y.jpg",
-                "Chibi Style": "https://i.imgur.com/9kJbB5F.jpg",
-                "Retro Cartoon": "https://i.imgur.com/KzQDVQs.jpg",
-                "Minimalist Animation": "https://i.imgur.com/4YgvfTH.jpg",
-                "Caricature": "https://i.imgur.com/XWG0SYm.jpg"
-            }
-            # Eğer örnek görsel varsa göster, yoksa placeholder göster
-            if selected_style in style_examples:
-                st.image(style_examples[selected_style], width=200, caption=f"{selected_style} Stil Örneği")
-            else:
-                st.image("https://placehold.co/200x200?text=Örnek+Yok", width=200, caption="Örnek Yok")
-            
-            # Dönüştür butonu
-            if st.button("Çizgi Filme Dönüştür", key="convert_btn"):
-                with st.spinner(f"{selected_style} stiline dönüştürülüyor..."):
-                    try:
-                        # Dönüşüm yöntemine göre işlem yap
-                        if conversion_method == "Standart (Prompt Tabanlı)":
-                            # Çizgi film promptu oluştur
-                            cartoon_prompt = generate_cartoon_prompt(
-                                selected_style,
-                                customization
-                            )
-                            
-                            # Promptu kaydet
-                            st.session_state.cartoon_prompt = cartoon_prompt
-                            
-                            # Promptu göster
-                            with st.expander("Oluşturulan Dönüşüm Promptu"):
-                                st.text_area("", cartoon_prompt, height=100, key="cartoon_prompt_display", disabled=True)
-                            
-                            # DALL-E ile görseli dönüştür
-                            response = client.images.generate(
-                                model="dall-e-3",
-                                prompt=cartoon_prompt + f" Based on this realistic image. Make it a high-quality {selected_style} style cartoon.",
-                                n=1,
-                                size="1024x1024",
-                                quality=selected_quality
-                            )
-                            
-                            cartoon_image_url = response.data[0].url
-                        else:
-                            # Gelişmiş dönüşüm (ChatGPT analizi ile)
-                            cartoon_image_url = transform_image_with_openai(
-                                st.session_state.selected_image_to_convert,
-                                selected_style + (f", {customization}" if customization else "")
-                            )
-                        
-                        # Çizgi film görsellerine ve geçmişe ekle
-                        st.session_state.cartoon_images.append(cartoon_image_url)
-                        st.session_state.image_history.append({
-                            "url": cartoon_image_url,
-                            "type": f"Cartoon ({selected_style})",
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-                        
-                        # Sonucu göster
-                        st.markdown("#### Dönüştürülen Çizgi Film Görseli:")
-                        st.image(cartoon_image_url, use_column_width=True)
-                        
-                        # Çizgi film görseli için butonlar
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("Etsy İçin Kullan", key="use_for_etsy_cartoon"):
-                                set_image_for_etsy(cartoon_image_url)
-                        with col2:
-                            image_data = download_image(cartoon_image_url)
-                            if image_data:
-                                st.download_button(
-                                    label="Görseli İndir",
-                                    data=image_data,
-                                    file_name=f"cartoon_{selected_style.lower().replace(' ', '_')}.png",
-                                    mime="image/png",
-                                    key="download_cartoon"
-                                )
-                        
-                        # Karşılaştırma göster
-                        st.markdown("#### Karşılaştırma:")
-                        comparison_col1, comparison_col2 = st.columns(2)
-                        with comparison_col1:
-                            st.markdown("**Öncesi (Gerçekçi)**")
-                            st.image(st.session_state.selected_image_to_convert, use_column_width=True)
-                        with comparison_col2:
-                            st.markdown(f"**Sonrası ({selected_style})**")
-                            st.image(cartoon_image_url, use_column_width=True)
-                        
-                        # Stil analizi
-                        with st.expander("Stil Analizi"):
-                            st.markdown("#### Stil Özellikleri")
-                            style_analysis = {
-                                "Pixar 3D": "3 boyutlu modelleme, yumuşak yüzeyler, gerçekçi doku, abartılı yüz ifadeleri",
-                                "Disney 2D Animation": "Akıcı animasyon, yumuşak hatlar, canlı renkler, ifadeli gözler",
-                                "DreamWorks": "Detaylı 3D modelleme, daha karikatürize yüzler, dinamik hareketler",
-                                "Anime": "Büyük gözler, stilize saçlar, minimal yüz detayları, düz renkler",
-                                "South Park": "Basit şekiller, kağıt kesim görünümü, sınırlı animasyon, canlı renkler",
-                                "The Simpsons": "Sarı ten, büyük gözler, dört parmak, belirgin kontur çizgileri",
-                                "Studio Ghibli": "Detaylı arka planlar, yumuşak renkler, doğa vurgusu, akıcı animasyon",
-                                "Comic Book": "Kalın konturlar, noktalı gölgelendirme, canlı renkler, konuşma balonları",
-                                "Watercolor Illustration": "Sulu boya efekti, yumuşak geçişler, sanatsal fırça darbeleri",
-                                "Claymation": "Kil görünümü, dokulu yüzeyler, stop-motion etkisi",
-                                "Cartoon Network": "Geometrik şekiller, kalın konturlar, düz renkler, dinamik pozlar",
-                                "Chibi Style": "Küçük vücut, büyük kafa, minimalist özellikler, sevimli ifadeler",
-                                "Retro Cartoon": "Vintage görünüm, sınırlı renk paleti, nostaljik stil",
-                                "Minimalist Animation": "Basit şekiller, sınırlı detaylar, düz renkler, şık tasarım",
-                                "Caricature": "Abartılı özellikler, mizahi yaklaşım, tanınabilir yüzler"
-                            }
-                            
-                            if selected_style in style_analysis:
-                                st.markdown(f"**{selected_style} Stili Özellikleri:**")
-                                for özellik in style_analysis[selected_style].split(", "):
-                                    st.markdown(f"- {özellik}")
-                            else:
-                                st.info("Bu stil için detaylı analiz bulunmuyor.")
-                        
-                        st.session_state.notification = f"Görsel başarıyla {selected_style} stiline dönüştürüldü"
-                        st.session_state.notification_type = "success"
-                        
-                    except Exception as e:
-                        st.session_state.notification = f"Dönüştürme hatası: {str(e)}"
-                        st.session_state.notification_type = "error"
-                        st.error("Lütfen başka bir stil deneyin veya API anahtarınızı kontrol edin.")
-    else:
-        # Dönüştürülecek görsel seçilmemişse
-        st.info("Lütfen önce 'Gerçekçi Görsel Oluşturma' sekmesinden bir görsel oluşturun ve 'Çizgi Filme Dönüştür' butonuna tıklayın.")
-        
-        # Örnek görseller
-        st.markdown("### Örnek Dönüşümler")
-        st.markdown("Aşağıda bazı örnek dönüşümleri görebilirsiniz:")
-        
-        example_col1, example_col2, example_col3 = st.columns(3)
-        with example_col1:
-            st.image("https://i.imgur.com/JKy7JbN.jpg", caption="Gerçekçi Portre")
-        with example_col2:
-            st.image("https://i.imgur.com/8ETtSP3.jpg", caption="South Park Stili")
-        with example_col3:
-            st.image("https://i.imgur.com/NJJBqDz.jpg", caption="Studio Ghibli Stili")
-        
-        # Stil karşılaştırma
-        st.markdown("### Stil Karşılaştırma Tablosu")
-        st.markdown("""
-        | Stil | Özellikler | En İyi Kullanım |
-        | ---- | ---------- | --------------- |
-        | Pixar 3D | 3D modelleme, gerçekçi doku | Aile filmleri, duygusal hikayeler |
-        | Disney 2D | Akıcı animasyon, canlı renkler | Masallar, klasik hikayeler |
-        | Anime | Büyük gözler, stilize saçlar | Japon tarzı, aksiyon, fantezi |
-        | Comic Book | Kalın konturlar, canlı renkler | Süper kahraman, aksiyon |
-        | Watercolor | Sulu boya efekti, yumuşak geçişler | Sanatsal, duygusal, nostaljik |
-        """)
-        
-        # Stil seçimi ipuçları
-        st.markdown("""
-        <div class="tips-box">
-            <h4>💡 Stil Seçimi İpuçları</h4>
-            <ul>
-                <li>Çocuklar için: Pixar 3D, Disney 2D veya Cartoon Network</li>
-                <li>Genç yetişkinler için: Anime, Comic Book veya The Simpsons</li>
-                <li>Sanatsal görünüm için: Studio Ghibli veya Watercolor Illustration</li>
-                <li>Mizahi yaklaşım için: South Park, Caricature veya The Simpsons</li>
-                <li>Nostaljik hava için: Retro Cartoon veya Claymation</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-# 3. Etsy Metadata Sekmesi
-with tab3:
-    st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
+    # Stil seçimi için görsel örnekler
+    style_examples = {
+        "Pixar 3D": "https://i.imgur.com/8JLGtLF.jpg",
+        "Disney 2D Animation": "https://i.imgur.com/2D9fRpD.jpg",
+        "DreamWorks": "https://i.imgur.com/LGPxVHC.jpg",
+        "Anime": "https://i.imgur.com/qsf4MZL.jpg",
+        "South Park": "https://i.imgur.com/8ETtSP3.jpg",
+        "The Simpsons": "https://i.imgur.com/5BF1EoH.jpg",
+        "Studio Ghibli": "https://i.imgur.com/NJJBqDz.jpg"
+    }
     
-    if st.session_state.selected_image_for_etsy:
-        col1, col2 = st.columns([1, 2])
+    # Dönüştürülecek görsel seçimi
+    upload_col, preview_col = st.columns([1, 1])
+    
+    with upload_col:
+        st.markdown("### Gerçek Fotoğraf Yükle")
+        uploaded_file = st.file_uploader("Fotoğrafınızı yükleyin", type=["jpg", "jpeg", "png"])
         
-        with col1:
+        # Veya önceden oluşturulan görseli kullan
+        if st.session_state.selected_image_to_convert:
             st.markdown("#### Seçilen Görsel")
-            st.image(st.session_state.selected_image_for_etsy, use_column_width=True)
-            
-            # Görsel analizi
-            with st.expander("Görsel Analizi"):
-                st.markdown("Görselin otomatik analizi yapılıyor...")
+            st.image(st.session_state.selected_image_to_convert, use_column_width=True)
+    
+    # Stil seçimi
+    st.markdown("### Çizgi Film Stili Seçin")
+    
+    # Stil seçimini görsel olarak göster
+    style_cols = st.columns(3)
+    selected_style = None
+    
+    for i, (style_name, style_img) in enumerate(style_examples.items()):
+        with style_cols[i % 3]:
+            st.image(style_img, caption=style_name, width=180)
+            if st.button(f"Seç: {style_name}", key=f"style_btn_{i}"):
+                selected_style = style_name
+                st.session_state.selected_style = style_name
+    
+    # Eğer session state'te seçili stil varsa göster
+    if 'selected_style' in st.session_state:
+        st.success(f"Seçilen stil: {st.session_state.selected_style}")
+        selected_style = st.session_state.selected_style
+    
+    # Dönüştürme butonu
+    if (uploaded_file or st.session_state.selected_image_to_convert) and selected_style:
+        if st.button("Çizgi Film Karakterine Dönüştür", key="convert_cartoon_btn", use_container_width=True):
+            with st.spinner(f"Fotoğrafınız {selected_style} stiline dönüştürülüyor..."):
                 try:
-                    # Görüntüyü base64'e dönüştür
-                    response = requests.get(st.session_state.selected_image_for_etsy)
-                    image = Image.open(BytesIO(response.content))
+                    # Görüntüyü hazırla
+                    if uploaded_file:
+                        image = Image.open(uploaded_file)
+                        # Görüntüyü base64'e dönüştür
+                        buffered = BytesIO()
+                        image.save(buffered, format="PNG")
+                        img_str = base64.b64encode(buffered.getvalue()).decode()
+                        image_url = f"data:image/png;base64,{img_str}"
+                    else:
+                        # Seçilen görseli kullan
+                        image_url = st.session_state.selected_image_to_convert
+                        response = requests.get(image_url)
+                        image = Image.open(BytesIO(response.content))
+                        buffered = BytesIO()
+                        image.save(buffered, format="PNG")
+                        img_str = base64.b64encode(buffered.getvalue()).decode()
                     
-                    # Görüntü boyutunu kontrol et ve gerekirse yeniden boyutlandır
-                    max_size = (512, 512)  # Analiz için küçük boyut yeterli
-                    if image.width > max_size[0] or image.height > max_size[1]:
-                        image.thumbnail(max_size, Image.LANCZOS)
+                    # Görüntüyü analiz et ve dönüşüm promptu oluştur
+                    analysis_prompt = f"""You are a professional character designer for {selected_style} style animations.
                     
-                    buffered = BytesIO()
-                    image.save(buffered, format="PNG")
-                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    Analyze this photograph in detail and create a prompt that will transform it into a {selected_style} style 3D animated character.
+                    
+                    Focus on:
+                    1. Facial features (shape of face, eyes, nose, mouth, ears)
+                    2. Hair style and color
+                    3. Skin tone
+                    4. Expression and emotion
+                    5. Body type and posture
+                    6. Clothing and accessories
+                    7. Background setting that would complement the character
+                    
+                    Create a detailed prompt that will maintain the person's likeness and key characteristics while transforming them into a {selected_style} style character.
+                    
+                    Make sure the prompt specifies that the final image should:
+                    - Include a small circular thumbnail of the original photo in the corner
+                    - Have the character in a similar pose to the original
+                    - Use the {selected_style} signature art style with its characteristic lighting and rendering
+                    - Maintain the essence and personality of the subject
+                    
+                    Your prompt should be detailed enough to create a high-quality transformation that the person will instantly recognize as themselves in {selected_style} style.
+                    """
                     
                     # GPT-4V ile görüntüyü analiz et
-                    analysis_prompt = "Describe this image in detail, focusing on: 1) Main subject 2) Style 3) Colors 4) Mood/atmosphere 5) Potential uses as a digital product. Keep it concise."
-                    
-                    analysis_response = client.chat.completions.create(
+                    response = client.chat.completions.create(
                         model="gpt-4o",
                         messages=[
                             {
@@ -974,402 +851,293 @@ with tab3:
                                     {
                                         "type": "image_url",
                                         "image_url": {
+                                            "url": f"data:image/png;base64,{img_str}" if uploaded_file else image_url
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        max_tokens=800
+                    )
+                    
+                    # Oluşturulan promptu al
+                    transformation_prompt = response.choices[0].message.content
+                    
+                    # Promptu göster (isteğe bağlı)
+                    with st.expander("Oluşturulan Dönüşüm Promptu"):
+                        st.text_area("", transformation_prompt, height=200, key="transformation_prompt_display", disabled=True)
+                    
+                    # DALL-E ile görseli dönüştür
+                    dalle_response = client.images.generate(
+                        model="dall-e-3",
+                        prompt=transformation_prompt + f"\n\nCreate a {selected_style} style 3D animated character based on this photo. Include a small circular thumbnail of the original photo in the bottom left corner. Maintain the person's likeness and key characteristics.",
+                        n=1,
+                        size="1024x1024",
+                        quality="hd"
+                    )
+                    
+                    # Dönüştürülen görseli al
+                    cartoon_image_url = dalle_response.data[0].url
+                    
+                    # Sonucu göster
+                    result_col1, result_col2 = st.columns(2)
+                    
+                    with result_col1:
+                        st.markdown("### Orijinal Fotoğraf")
+                        if uploaded_file:
+                            st.image(uploaded_file, use_column_width=True)
+                        else:
+                            st.image(st.session_state.selected_image_to_convert, use_column_width=True)
+                    
+                    with result_col2:
+                        st.markdown(f"### {selected_style} Karakteri")
+                        st.image(cartoon_image_url, use_column_width=True)
+                    
+                    # Görseli geçmişe ve çizgi film görsellerine ekle
+                    st.session_state.cartoon_images.append(cartoon_image_url)
+                    st.session_state.image_history.append({
+                        "url": cartoon_image_url,
+                        "type": f"Cartoon ({selected_style})",
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                    
+                    # İndirme butonu
+                    cartoon_image_data = download_image(cartoon_image_url)
+                    if cartoon_image_data:
+                        st.download_button(
+                            label="Çizgi Film Karakterini İndir",
+                            data=cartoon_image_data,
+                            file_name=f"cartoon_{selected_style.lower().replace(' ', '_')}.png",
+                            mime="image/png",
+                            key="download_cartoon_result"
+                        )
+                    
+                    # Başarı mesajı
+                    st.success(f"Fotoğrafınız başarıyla {selected_style} stilinde bir karaktere dönüştürüldü!")
+                    
+                except Exception as e:
+                    st.error(f"Dönüştürme sırasında bir hata oluştu: {str(e)}")
+                    st.error("Lütfen başka bir fotoğraf veya stil deneyin.")
+    else:
+        # Kullanıcıya ne yapması gerektiğini açıkla
+        if not (uploaded_file or st.session_state.selected_image_to_convert):
+            st.info("Lütfen bir fotoğraf yükleyin veya önceki sekmeden bir görsel seçin.")
+        if not selected_style:
+            st.info("Lütfen bir çizgi film stili seçin.")
+    
+    # Örnek dönüşümler
+    st.markdown("### Örnek Dönüşümler")
+    st.markdown("Aşağıda bazı örnek dönüşümleri görebilirsiniz:")
+    
+    example_cols = st.columns(3)
+    
+    # Örnek görselleri göster (eğer dosyalar mevcutsa)
+    try:
+        with example_cols[0]:
+            st.image("3.jpg", caption="Pixar 3D Stil Örneği", use_column_width=True)
+        
+        with example_cols[1]:
+            st.image("13.jpg", caption="Pixar Evcil Hayvan Örneği", use_column_width=True)
+        
+        with example_cols[2]:
+            st.image("7.jpg", caption="Pixar Düğün Portresi Örneği", use_column_width=True)
+    except:
+        # Dosyalar mevcut değilse örnek görseller için yer tutucular göster
+        with example_cols[0]:
+            st.markdown("*Pixar 3D Stil Örneği*")
+        
+        with example_cols[1]:
+            st.markdown("*Pixar Evcil Hayvan Örneği*")
+        
+        with example_cols[2]:
+            st.markdown("*Pixar Düğün Portresi Örneği*")
+    
+    # Stil özellikleri
+    st.markdown("### Stil Özellikleri")
+    
+    style_features = {
+        "Pixar 3D": [
+            "Büyük, ifadeli gözler",
+            "Yumuşatılmış, hafif stilize yüz hatları",
+            "Gerçekçi doku ve aydınlatma",
+            "Canlı renkler ve yüksek kontrast",
+            "Duygusal ifadelere vurgu"
+        ],
+        "Disney 2D Animation": [
+            "Akıcı çizgiler ve yumuşak kenarlar",
+            "Büyük, ifadeli gözler",
+            "Stilize vücut oranları",
+            "Canlı, doygun renkler",
+            "Klasik animasyon estetiği"
+        ],
+        "DreamWorks": [
+            "Daha karikatürize yüz özellikleri",
+            "Abartılı ifadeler",
+            "Detaylı saç ve kıyafet dokuları",
+            "Dinamik poz ve kompozisyonlar",
+            "Yumuşak gölgelendirme"
+        ],
+        "Anime": [
+            "Büyük gözler ve küçük burun/ağız",
+            "Stilize saç şekilleri ve renkleri",
+            "Basitleştirilmiş yüz detayları",
+            "Keskin çizgiler",
+            "İfadeli duruşlar"
+        ],
+        "South Park": [
+            "Basit, kağıt kesim tarzı",
+            "Minimal detay",
+            "Düz renkler",
+            "Basit geometrik şekiller",
+            "Karakteristik yüz ifadeleri"
+        ],
+        "The Simpsons": [
+            "Sarı cilt tonu",
+            "Büyük, yuvarlak gözler",
+            "Abartılı saç stilleri",
+            "Dört parmak",
+            "Belirgin dış çizgiler"
+        ],
+        "Studio Ghibli": [
+            "Yumuşak, detaylı arka planlar",
+            "Doğal, gerçekçi hareketler",
+            "İnce detaylar",
+            "Pastel renk paleti",
+            "Duygusal yüz ifadeleri"
+        ]
+    }
+    
+    # Seçilen stil için özellikleri göster
+    if selected_style and selected_style in style_features:
+        st.markdown(f"#### {selected_style} Stil Özellikleri:")
+        for feature in style_features[selected_style]:
+            st.markdown(f"- {feature}")
+
+# 3. Etsy Metadata Sekmesi
+with tab3:
+    st.markdown('<div class="section-title"><h3>Etsy Ürün Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
+    
+    # Seçilen görseli göster
+    if st.session_state.selected_image_for_etsy:
+        st.markdown("### Seçilen Görsel")
+        st.image(st.session_state.selected_image_for_etsy, width=300)
+    else:
+        st.info("Henüz bir görsel seçilmedi. Lütfen diğer sekmelerden bir görsel oluşturun ve 'Etsy İçin Kullan' butonuna tıklayın.")
+    
+    # Ürün bilgileri
+    if st.session_state.selected_image_for_etsy:
+        st.markdown("### Ürün Bilgileri")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            product_type = st.selectbox(
+                "Ürün Türü", 
+                ["Dijital İndirilebilir Portre", "Fiziksel Baskı", "Özel Sipariş Portre", "Dijital Çizgi Film Portresi"]
+            )
+            
+            product_name = st.text_input("Ürün Adı", "Özel Dijital Portre")
+            
+            product_price = st.number_input("Fiyat ($)", min_value=5.0, max_value=500.0, value=29.99, step=5.0)
+            
+            delivery_time = st.selectbox(
+                "Teslimat Süresi", 
+                ["1-2 gün", "3-5 gün", "1 hafta", "2 hafta"]
+            )
+        
+        with col2:
+            tags = st.text_area(
+                "Etiketler (virgülle ayırın)", 
+                "dijital portre, özel portre, ai portre, kişiselleştirilmiş hediye"
+            )
+            
+            description_prompt = st.text_area(
+                "Açıklama İçin Prompt", 
+                "Bu ürün için SEO dostu bir açıklama oluştur. Ürün bir dijital portre ve müşteriye e-posta ile gönderilecek."
+            )
+    
+        # Metadata oluşturma butonu
+        if st.button("Etsy Metadata Oluştur", key="gen_metadata_btn"):
+            with st.spinner("Etsy için metadata oluşturuluyor..."):
+                try:
+                    # Görüntüyü base64'e dönüştür
+                    response = requests.get(st.session_state.selected_image_for_etsy)
+                    image = Image.open(BytesIO(response.content))
+                    buffered = BytesIO()
+                    image.save(buffered, format="PNG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    
+                    # GPT-4V ile görüntüyü analiz et
+                    prompt = f"""Analyze this image and create Etsy metadata for it.
+
+                    Product Type: {product_type}
+                    Product Name: {product_name}
+                    Price: ${product_price}
+                    Delivery Time: {delivery_time}
+                    Tags: {tags}
+
+                    Create the following:
+                    1. A catchy, SEO-friendly product title (max 140 characters)
+                    2. 5 bullet points highlighting the product features and benefits
+                    3. A detailed product description (250-300 words) that is SEO-friendly
+                    4. 10 additional relevant tags for Etsy search
+                    5. Suggest 3 upsell opportunities for this product
+
+                    Additional context: {description_prompt}
+                    """
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
                                             "url": f"data:image/png;base64,{img_str}"
                                         }
                                     }
                                 ]
                             }
                         ],
-                        max_tokens=300
+                        max_tokens=1000
                     )
                     
-                    analysis_text = analysis_response.choices[0].message.content
-                    st.markdown(analysis_text)
+                    # Metadata'yı al
+                    metadata = response.choices[0].message.content
                     
-                    # Renk paleti analizi
-                    st.markdown("#### Renk Paleti")
-                    # Görüntüdeki baskın renkleri bul
-                    image = image.convert('RGB')
-                    image = image.resize((50, 50))  # Performans için küçült
-                    pixels = list(image.getdata())
+                    # Sonucu göster
+                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                    st.markdown("### Oluşturulan Etsy Metadata")
+                    st.markdown(metadata)
                     
-                    # Renkleri grupla ve en yaygın 5 rengi bul
-                    color_counts = {}
-                    for pixel in pixels:
-                        # Benzer renkleri grupla (hassasiyeti azalt)
-                        grouped_pixel = (pixel[0]//20*20, pixel[1]//20*20, pixel[2]//20*20)
-                        if grouped_pixel in color_counts:
-                            color_counts[grouped_pixel] += 1
-                        else:
-                            color_counts[grouped_pixel] = 1
+                    # Kopyalama butonu
+                    st.text_area("Metadata (Kopyalamak için)", metadata, height=300)
+                    st.markdown('</div>', unsafe_allow_html=True)
                     
-                    # En yaygın 5 rengi al
-                    dominant_colors = sorted(color_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                    # Başarı mesajı
+                    st.success("Etsy metadata başarıyla oluşturuldu!")
                     
-                    # Renk paletini göster
-                    color_cols = st.columns(5)
-                    for i, (color, count) in enumerate(dominant_colors):
-                        hex_color = '#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2])
-                        with color_cols[i]:
-                            st.markdown(
-                                f"""
-                                <div style="background-color: {hex_color}; 
-                                            height: 50px; 
-                                            border-radius: 5px; 
-                                            margin-bottom: 5px;">
-                                </div>
-                                <p style="text-align: center; font-size: 12px;">{hex_color}</p>
-                                """, 
-                                unsafe_allow_html=True
-                            )
                 except Exception as e:
-                    st.error(f"Görsel analizi sırasında bir hata oluştu: {str(e)}")
-        
-        with col2:
-            st.markdown("#### Etsy Ürün Bilgileri")
-            
-            # Ürün tipi
-            product_type = st.selectbox(
-                "Ürün Tipi",
-                [
-                    "Digital Download",
-                    "Physical Print",
-                    "Custom Portrait",
-                    "Wall Art",
-                    "Phone Case Design",
-                    "T-shirt Design",
-                    "Mug Design",
-                    "Canvas Print",
-                    "Poster",
-                    "Printable Art",
-                    "SVG Cut File",
-                    "Digital Planner",
-                    "Digital Stickers",
-                    "Logo Template",
-                    "Social Media Template"
-                ],
-                key="product_type"
-            )
-            
-            # Ürün başlığı
-            product_title = st.text_input("Ürün Başlığı", key="product_title")
-            
-            # Ürün açıklaması
-            product_description = st.text_area("Ürün Açıklaması", height=150, key="product_description")
-            
-            # Etiketler
-            product_tags = st.text_input(
-                "Etiketler (virgülle ayırın)",
-                placeholder="örn: dijital sanat, portre, hediye, özel tasarım",
-                key="product_tags"
-            )
-            
-            # Fiyat
-            product_price = st.number_input("Fiyat ($)", min_value=0.99, value=9.99, step=1.0, key="product_price")
-            
-            # Hedef kitle
-            target_audience = st.multiselect(
-                "Hedef Kitle",
-                [
-                    "Çocuklar",
-                    "Gençler",
-                    "Yetişkinler",
-                    "Aileler",
-                    "Çiftler",
-                    "Öğrenciler",
-                    "Profesyoneller",
-                    "Sanat Severler",
-                    "Koleksiyoncular",
-                    "Hediye Arayanlar"
-                ],
-                key="target_audience"
-            )
-            
-            # Metadata oluştur butonu
-            if st.button("Etsy Metadata Oluştur", key="gen_metadata_btn"):
-                with st.spinner("Etsy için metadata oluşturuluyor..."):
-                    try:
-                        # Görsel analizi için ChatGPT kullanımı
-                        response = requests.get(st.session_state.selected_image_for_etsy)
-                        image = Image.open(BytesIO(response.content))
-                        
-                        # Görüntü boyutunu kontrol et ve gerekirse yeniden boyutlandır
-                        max_size = (1024, 1024)
-                        if image.width > max_size[0] or image.height > max_size[1]:
-                            image.thumbnail(max_size, Image.LANCZOS)
-                        
-                        buffered = BytesIO()
-                        image.save(buffered, format="PNG")
-                        img_str = base64.b64encode(buffered.getvalue()).decode()
-                        
-                        # Hedef kitle bilgisini hazırla
-                        audience_info = ", ".join(target_audience) if target_audience else "Genel"
-                        
-                        # GPT-4V ile görüntüyü analiz et
-                        prompt = f"""Analyze this image and help create Etsy metadata for it. The product type is: {product_type}.
-                        Target audience: {audience_info}
-                        
-                        1. Suggest a catchy product title (max 80 characters)
-                        2. Write a detailed product description (200-300 words) that highlights features and benefits
-                        3. Suggest 10-13 relevant tags for Etsy search optimization
-                        4. Recommend a fair price range for this type of product
-                        5. Identify key features of the image that should be highlighted in marketing
-                        6. Suggest 3 upselling ideas for this product
-                        
-                        Format your response as JSON with these keys: title, description, tags (array), price_range, key_features (array), upselling_ideas (array)"""
-                        
-                        response = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "text", "text": prompt},
-                                        {
-                                            "type": "image_url",
-                                            "image_url": {
-                                                "url": f"data:image/png;base64,{img_str}"
-                                            }
-                                        }
-                                    ]
-                                }
-                            ],
-                            response_format={"type": "json_object"},
-                            max_tokens=800
-                        )
-                        
-                        # JSON yanıtını parse et
-                        metadata = json.loads(response.choices[0].message.content)
-                        
-                        # Sonuçları göster
-                        st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                        st.markdown("### Etsy Metadata Sonuçları")
-                        
-                        st.markdown("#### Önerilen Başlık:")
-                        st.text_input("", metadata["title"], key="suggested_title")
-                        
-                        st.markdown("#### Önerilen Açıklama:")
-                        st.text_area("", metadata["description"], height=200, key="suggested_description")
-                        
-                        st.markdown("#### Önerilen Etiketler:")
-                        tags_str = ", ".join(metadata["tags"])
-                        st.text_area("", tags_str, height=80, key="suggested_tags")
-                        
-                        st.markdown("#### Önerilen Fiyat Aralığı:")
-                        st.info(metadata["price_range"])
-                        
-                        st.markdown("#### Öne Çıkan Özellikler:")
-                        for feature in metadata["key_features"]:
-                            st.markdown(f"- {feature}")
-                        
-                        st.markdown("#### Ek Satış Fırsatları:")
-                        for idea in metadata["upselling_ideas"]:
-                            st.markdown(f"- {idea}")
-                        
-                        # SEO analizi
-                        with st.expander("SEO Analizi"):
-                            st.markdown("#### Etsy SEO İpuçları")
-                            st.markdown("""
-                            1. **Başlık Optimizasyonu:** Başlığınızda ana anahtar kelimeleri kullanın
-                            2. **Etiket Kullanımı:** Tüm 13 etiketi kullanın ve çeşitli arama terimlerini kapsayın
-                            3. **Uzun-Kuyruk Anahtar Kelimeler:** Daha spesifik arama terimleri ekleyin
-                            4. **Kategori Seçimi:** Doğru kategoriyi seçtiğinizden emin olun
-                            5. **Açıklama İçeriği:** Açıklamada anahtar kelimeleri doğal bir şekilde kullanın
-                            """)
-                            
-                            # Anahtar kelime analizi
-                            st.markdown("#### Anahtar Kelime Analizi")
-                            keywords = []
-                            # Başlıktan anahtar kelimeleri çıkar
-                            title_words = metadata["title"].lower().replace(",", "").replace(".", "").split()
-                            # Etiketlerden anahtar kelimeleri çıkar
-                            tag_words = []
-                            for tag in metadata["tags"]:
-                                tag_words.extend(tag.lower().replace(",", "").replace(".", "").split())
-                            
-                            # Tüm anahtar kelimeleri birleştir ve tekrar edenleri say
-                            all_keywords = title_words + tag_words
-                            keyword_counts = {}
-                            for word in all_keywords:
-                                if len(word) > 3:  # Sadece anlamlı kelimeleri al
-                                    if word in keyword_counts:
-                                        keyword_counts[word] += 1
-                                    else:
-                                        keyword_counts[word] = 1
-                            
-                            # En çok tekrar eden 10 anahtar kelimeyi göster
-                            top_keywords = sorted(keyword_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-                            
-                            keyword_cols = st.columns(5)
-                            for i, (keyword, count) in enumerate(top_keywords):
-                                col_idx = i % 5
-                                with keyword_cols[col_idx]:
-                                    st.markdown(
-                                        f"""
-                                        <div style="background-color: rgba(255, 75, 75, {count/max(dict(top_keywords).values())}); 
-                                                    padding: 10px; 
-                                                    border-radius: 5px; 
-                                                    margin-bottom: 10px;
-                                                    text-align: center;">
-                                            <p style="margin: 0; font-weight: bold;">{keyword}</p>
-                                            <p style="margin: 0; font-size: 12px;">({count})</p>
-                                        </div>
-                                        """, 
-                                        unsafe_allow_html=True
-                                    )
-                        # JSON indirme butonu
-                        json_str = json.dumps(metadata, indent=2)
-                        st.download_button(
-                            label="Metadata JSON İndir",
-                            data=json_str,
-                            file_name="etsy_metadata.json",
-                            mime="application/json",
-                            key="download_metadata"
-                        )
-                        
-                        # HTML şablonu oluştur
-                        html_template = f"""
-                        <!DOCTYPE html>
-                        <html lang="tr">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <title>{metadata["title"]}</title>
-                            <style>
-                                body {{
-                                    font-family: Arial, sans-serif;
-                                    line-height: 1.6;
-                                    max-width: 800px;
-                                    margin: 0 auto;
-                                    padding: 20px;
-                                }}
-                                h1 {{
-                                    color: #d85a5a;
-                                }}
-                                .product-description {{
-                                    margin: 20px 0;
-                                }}
-                                .features {{
-                                    background-color: #f9f9f9;
-                                    padding: 15px;
-                                    border-radius: 5px;
-                                }}
-                                .tags {{
-                                    display: flex;
-                                    flex-wrap: wrap;
-                                    margin: 20px 0;
-                                }}
-                                .tag {{
-                                    background-color: #eee;
-                                    padding: 5px 10px;
-                                    margin: 5px;
-                                    border-radius: 3px;
-                                    font-size: 14px;
-                                }}
-                                .price {{
-                                    font-size: 24px;
-                                    font-weight: bold;
-                                    color: #d85a5a;
-                                }}
-                                .upsell {{
-                                    margin-top: 30px;
-                                    padding-top: 20px;
-                                    border-top: 1px solid #eee;
-                                }}
-                            </style>
-                        </head>
-                        <body>
-                            <h1>{metadata["title"]}</h1>
-                            
-                            <div class="price">
-                                {metadata["price_range"]}
-                            </div>
-                            
-                            <div class="product-description">
-                                {metadata["description"].replace("\n", "<br>")}
-                            </div>
-                            
-                            <div class="features">
-                                <h3>Öne Çıkan Özellikler</h3>
-                                <ul>
-                                    {"".join(f"<li>{feature}</li>" for feature in metadata["key_features"])}
-                                </ul>
-                            </div>
-                            
-                            <div class="tags">
-                                <h3>Etiketler:</h3>
-                                {"".join(f'<span class="tag">{tag}</span>' for tag in metadata["tags"])}
-                            </div>
-                            
-                            <div class="upsell">
-                                <h3>Ayrıca Bakabilirsiniz:</h3>
-                                <ul>
-                                    {"".join(f"<li>{idea}</li>" for idea in metadata["upselling_ideas"])}
-                                </ul>
-                            </div>
-                        </body>
-                        </html>
-                        """
-                        
-                        # HTML şablonunu indir
-                        st.download_button(
-                            label="HTML Şablonu İndir",
-                            data=html_template,
-                            file_name="etsy_listing.html",
-                            mime="text/html",
-                            key="download_html"
-                        )
-                        
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        
-                        st.session_state.notification = "Etsy metadata başarıyla oluşturuldu"
-                        st.session_state.notification_type = "success"
-                        
-                    except Exception as e:
-                        st.session_state.notification = f"Metadata oluşturma hatası: {str(e)}"
-                        st.session_state.notification_type = "error"
-                        st.error("Lütfen tekrar deneyin veya API anahtarınızı kontrol edin.")
-    else:
-        # Etsy için görsel seçilmemişse
-        st.info("Lütfen önce bir görsel oluşturun ve 'Etsy İçin Kullan' butonuna tıklayın.")
-        
-        # Etsy satış ipuçları
-        st.markdown("### Etsy Satış İpuçları")
-        st.markdown("""
-        <div class="tips-box">
-            <h4>💡 Etsy'de Başarılı Olma İpuçları</h4>
-            <ul>
-                <li><strong>SEO Optimizasyonu:</strong> Başlık ve etiketlerde anahtar kelimeler kullanın</li>
-                <li><strong>Kaliteli Görseller:</strong> Yüksek çözünürlüklü, net ve çekici görseller kullanın</li>
-                <li><strong>Detaylı Açıklamalar:</strong> Ürününüzün tüm özelliklerini ve faydalarını belirtin</li>
-                <li><strong>Doğru Fiyatlandırma:</strong> Pazar araştırması yaparak rekabetçi fiyatlar belirleyin</li>
-                <li><strong>Müşteri Hizmetleri:</strong> Hızlı yanıt verin ve müşteri memnuniyetine önem verin</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Örnek Etsy listeleme
-        st.markdown("### Örnek Etsy Listeleme")
-        example_col1, example_col2 = st.columns([1, 2])
-        with example_col1:
-            st.image("https://i.imgur.com/JM9cMiZ.jpg", caption="Örnek Dijital İndirme")
-        with example_col2:
-            st.markdown("""
-            #### Sulu Boya Aile Portresi, Kişiselleştirilmiş Dijital İndirme
-            
-            **$12.99**
-            
-            Bu güzel sulu boya aile portresi, özel anılarınızı sanatsal bir şekilde ölümsüzleştirmek için mükemmel bir seçimdir. Fotoğrafınızdan oluşturulan bu dijital sanat eseri, evinizin duvarlarında harika görünecek.
-            
-            **Özellikler:**
-            - Yüksek çözünürlüklü dijital dosya (300 DPI)
-            - Çeşitli boyut seçenekleri (8x10, 11x14, 16x20 inç)
-            - Sınırsız indirme hakkı
-            - Kişiselleştirilebilir renk seçenekleri
-            - 24 saat içinde teslim
-            
-            **Etiketler:** aile portresi, sulu boya sanat, kişiselleştirilmiş hediye, duvar sanatı, dijital indirme, özel portre, ev dekorasyonu, doğum günü hediyesi, yıldönümü hediyesi
-            """)
+                    st.error(f"Metadata oluşturma hatası: {str(e)}")
+    
+    # Etsy satış ipuçları
+    st.markdown("### Etsy Satış İpuçları")
+    st.markdown("""
+    <div class="tips-box">
+        <h4>💡 Etsy'de Daha Fazla Satış İçin İpuçları</h4>
+        <ul>
+            <li>Ürün başlığında anahtar kelimeleri stratejik olarak kullanın</li>
+            <li>Yüksek kaliteli, net görseller kullanın</li>
+            <li>Ürün açıklamasında müşterinin alacağı her şeyi detaylı olarak belirtin</li>
+            <li>Hızlı teslimat ve müşteri hizmetlerine öncelik verin</li>
+            <li>Ürün yorumları için müşterilerinizi teşvik edin</li>
+            <li>Sosyal medyada ürünlerinizi tanıtın</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
 # 4. Görsel Geçmişi Sekmesi
 with tab4:
@@ -1378,41 +1146,38 @@ with tab4:
     # Geçmiş görselleri göster
     if st.session_state.image_history:
         # Filtreleme seçenekleri
-        filter_col1, filter_col2 = st.columns(2)
-        with filter_col1:
-            filter_type = st.selectbox(
-                "Görsel Tipi Filtrele",
-                ["Tümü", "Realistic", "Cartoon"],
-                key="filter_type"
-            )
-        with filter_col2:
-            sort_order = st.selectbox(
-                "Sıralama",
-                ["En Yeni", "En Eski"],
-                key="sort_order"
-            )
+        filter_options = ["Tümü", "Gerçekçi", "Çizgi Film"]
+        selected_filter = st.selectbox("Görsel Türüne Göre Filtrele", filter_options)
         
-        # Filtreleme ve sıralama uygula
-        filtered_history = st.session_state.image_history
-        if filter_type != "Tümü":
-            filtered_history = [img for img in filtered_history if filter_type in img["type"]]
+        # Sıralama seçenekleri
+        sort_options = ["En Yeni", "En Eski"]
+        selected_sort = st.selectbox("Sırala", sort_options)
         
-        # Sıralama uygula
-        if sort_order == "En Yeni":
-            filtered_history = sorted(filtered_history, key=lambda x: x["timestamp"], reverse=True)
+        # Görselleri filtrele
+        filtered_images = st.session_state.image_history
+        if selected_filter == "Gerçekçi":
+            filtered_images = [img for img in filtered_images if img["type"] == "Realistic"]
+        elif selected_filter == "Çizgi Film":
+            filtered_images = [img for img in filtered_images if "Cartoon" in img["type"]]
+        
+        # Görselleri sırala
+        if selected_sort == "En Yeni":
+            filtered_images = sorted(filtered_images, key=lambda x: x["timestamp"], reverse=True)
         else:
-            filtered_history = sorted(filtered_history, key=lambda x: x["timestamp"])
+            filtered_images = sorted(filtered_images, key=lambda x: x["timestamp"])
         
-        # Geçmiş görselleri göster
+        # Görselleri göster
         st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
-        for i, image_data in enumerate(filtered_history):
+        for i, image_data in enumerate(filtered_images):
             st.markdown('<div class="image-card">', unsafe_allow_html=True)
-            st.image(image_data["url"], use_column_width=True, caption=f"{image_data['type']} - {image_data['timestamp']}")
+            st.image(image_data["url"], use_column_width=True)
+            st.markdown(f"**Tür:** {image_data['type']}")
+            st.markdown(f"**Tarih:** {image_data['timestamp']}")
             
             col1, col2 = st.columns(2)
             with col1:
                 # Çizgi filme dönüştürme butonu (sadece gerçekçi görseller için)
-                if "Realistic" in image_data["type"]:
+                if image_data["type"] == "Realistic":
                     if st.button(f"Çizgi Filme Dönüştür", key=f"hist_convert_{i}"):
                         set_image_to_convert(image_data["url"])
             
@@ -1433,20 +1198,25 @@ with tab4:
                 )
             st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Geçmişi temizleme butonu
-        if st.button("Geçmişi Temizle", key="clear_history"):
-            st.session_state.image_history = []
-            st.session_state.notification = "Görsel geçmişi temizlendi"
-            st.session_state.notification_type = "info"
-            st.rerun()
     else:
-        st.info("Henüz oluşturulmuş görsel bulunmuyor. Lütfen önce bir görsel oluşturun.")
+        st.info("Henüz oluşturulmuş görsel bulunmuyor. Diğer sekmeleri kullanarak görsel oluşturun.")
+    
+    # Geçmişi temizleme butonu
+    if st.session_state.image_history and st.button("Görsel Geçmişini Temizle", key="clear_history_btn"):
+        st.session_state.image_history = []
+        st.session_state.realistic_images = []
+        st.session_state.cartoon_images = []
+        st.session_state.selected_image_to_convert = None
+        st.session_state.selected_image_for_etsy = None
+        st.session_state.notification = "Görsel geçmişi temizlendi"
+        st.session_state.notification_type = "info"
+        st.experimental_rerun()
 
-# Alt bilgi
+# Footer
 st.markdown("""
 <div class="footer">
-    <p>© 2025 AI Görsel Oluşturma ve Dönüştürme Aracı</p>
-    <p>Bu uygulama OpenAI API kullanarak yapay zeka destekli görsel oluşturma ve dönüştürme hizmeti sunar.</p>
+    <p>© 2025 AI Görsel Oluşturma Aracı | Tüm hakları saklıdır.</p>
+    <p>Bu uygulama, OpenAI'nin DALL-E ve GPT teknolojilerini kullanmaktadır.</p>
 </div>
 """, unsafe_allow_html=True)
+
