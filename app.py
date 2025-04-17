@@ -44,9 +44,12 @@ st.markdown("""
         padding: 10px 20px;
         font-weight: bold;
         border: none;
+        transition: all 0.3s ease;
     }
     .stButton button:hover {
         background-color: #ff7070;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(255, 75, 75, 0.3);
     }
     .drop-zone {
         border: 2px dashed #ccc;
@@ -60,74 +63,194 @@ st.markdown("""
         justify-content: center;
         align-items: center;
         cursor: pointer;
+        transition: all 0.3s ease;
     }
     .drop-zone:hover {
         border-color: #ff4b4b;
+        background-color: #2a2a2a;
     }
     .result-container {
         background-color: #1e1e1e;
         border-radius: 10px;
-        padding: 15px;
+        padding: 20px;
         margin-bottom: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        animation: fadeIn 0.5s ease;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     .header {
         display: flex;
         align-items: center;
         margin-bottom: 20px;
+        background: linear-gradient(90deg, #ff4b4b, #ff8f8f);
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(255, 75, 75, 0.3);
     }
     .header img {
         margin-right: 15px;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
     }
     .section-title {
         background-color: #2a2a2a;
-        padding: 10px 15px;
-        border-radius: 5px;
-        margin-bottom: 15px;
+        padding: 12px 18px;
+        border-radius: 8px;
+        margin-bottom: 18px;
+        border-left: 4px solid #ff4b4b;
+        font-weight: bold;
     }
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
+        background-color: #1a1a1a;
+        padding: 10px;
+        border-radius: 10px;
     }
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
         background-color: #2a2a2a;
-        border-radius: 5px 5px 0px 0px;
+        border-radius: 8px;
         gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
+        padding: 10px 20px;
+        transition: all 0.3s ease;
+        font-weight: bold;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #ff4b4b !important;
+        background: linear-gradient(90deg, #ff4b4b, #ff8f8f) !important;
         color: white !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(255, 75, 75, 0.3);
     }
     .image-gallery {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
     }
     .image-card {
         background-color: #2a2a2a;
-        border-radius: 8px;
-        padding: 10px;
+        border-radius: 10px;
+        padding: 15px;
         text-align: center;
-        transition: transform 0.3s;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        overflow: hidden;
     }
     .image-card:hover {
         transform: scale(1.03);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+    }
+    .image-card img {
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    .image-card:hover img {
+        transform: scale(1.05);
     }
     .tips-box {
         background-color: #2a2a2a;
         border-left: 4px solid #ff4b4b;
-        padding: 10px 15px;
-        margin-bottom: 15px;
-        border-radius: 0 5px 5px 0;
+        padding: 15px 20px;
+        margin-bottom: 20px;
+        border-radius: 0 8px 8px 0;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     .metadata-container {
         background-color: #2a2a2a;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .stSelectbox, .stMultiselect {
+        margin-bottom: 15px;
+    }
+    .stSelectbox [data-baseweb="select"] {
+        background-color: #2a2a2a;
         border-radius: 8px;
-        padding: 15px;
+    }
+    .stTextInput input, .stTextArea textarea {
+        background-color: #2a2a2a;
+        border-radius: 8px;
+        border: 1px solid #3a3a3a;
+        color: white;
+        padding: 10px 15px;
+    }
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: #ff4b4b;
+        box-shadow: 0 0 0 2px rgba(255, 75, 75, 0.3);
+    }
+    .download-btn {
+        display: inline-block;
+        background: linear-gradient(90deg, #ff4b4b, #ff8f8f);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: bold;
         margin-top: 15px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(255, 75, 75, 0.3);
+    }
+    .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(255, 75, 75, 0.4);
+    }
+    .footer {
+        margin-top: 50px;
+        text-align: center;
+        padding: 20px;
+        background-color: #1a1a1a;
+        border-radius: 10px;
+    }
+    .progress-container {
+        margin: 20px 0;
+    }
+    .progress-step {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .step-number {
+        background-color: #ff4b4b;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 10px;
+        font-weight: bold;
+    }
+    .step-text {
+        flex-grow: 1;
+    }
+    .loading-animation {
+        display: flex;
+        justify-content: center;
+        margin: 20px 0;
+    }
+    .loading-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: #ff4b4b;
+        margin: 0 5px;
+        animation: bounce 1.5s infinite ease-in-out;
+    }
+    .loading-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    .loading-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -314,9 +437,27 @@ def show_image_generation():
         quality_index = st.selectbox("Image Quality", quality_options_display)
         selected_quality = quality_options_api[quality_options_display.index(quality_index)]
 
-        
-        # Number of images
+        # Number of images - updated with better UX
         num_images = st.slider("Number of Images to Generate", 1, 4, 2)
+        
+        # Progress steps visualization
+        st.markdown("""
+        <div class="progress-container">
+            <h4>Generation Process:</h4>
+            <div class="progress-step">
+                <div class="step-number">1</div>
+                <div class="step-text">Generate detailed prompt using AI</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-number">2</div>
+                <div class="step-text">Create realistic images with OpenAI</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-number">3</div>
+                <div class="step-text">Convert to cartoon style</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Tips for better results
         st.markdown("""
@@ -340,7 +481,7 @@ def show_image_generation():
             
             system_prompt = """
             You are a professional photographer and visual artist.
-            You need to write a prompt for DALL-E to create realistic, high-quality images.
+            You need to write a prompt for OpenAI's image generation to create realistic, high-quality images.
             Based on the given information, create a detailed, realistic, and aesthetic photo prompt.
             The prompt should be in English and include all necessary details for a realistic photo.
             """
@@ -352,29 +493,39 @@ def show_image_generation():
             Style: {selected_style}
             Additional details: {additional_details}
             
-            Please create a DALL-E prompt for a realistic, high-quality photo based on this information.
+            Please create a prompt for a realistic, high-quality photo based on this information.
             The prompt should include all necessary details for the photo shoot: composition, lighting, atmosphere, color scheme, etc.
             Start the prompt with "A photorealistic image" and include directives to avoid AI-generated image feel.
             """
             
             try:
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=300
-                )
-                
-                realistic_prompt = response.choices[0].message.content.strip()
-                st.session_state.realistic_prompt = realistic_prompt
-                
-                st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                st.markdown("#### Generated Realistic Prompt:")
-                st.text_area("", realistic_prompt, height=150, key="prompt_result")
-                st.markdown('</div>', unsafe_allow_html=True)
-                
+                with st.spinner("Generating prompt..."):
+                    # Add loading animation
+                    st.markdown("""
+                    <div class="loading-animation">
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        max_tokens=300
+                    )
+                    
+                    realistic_prompt = response.choices[0].message.content.strip()
+                    st.session_state.realistic_prompt = realistic_prompt
+                    
+                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                    st.markdown("#### Generated Prompt:")
+                    st.text_area("", realistic_prompt, height=150, key="prompt_result")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
             except Exception as e:
                 st.error(f"Error generating prompt: {e}")
         
@@ -382,8 +533,18 @@ def show_image_generation():
         if st.button("Generate Images") and st.session_state.realistic_prompt:
             try:
                 with st.spinner("Generating images..."):
+                    # Add loading animation
+                    st.markdown("""
+                    <div class="loading-animation">
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                     width, height = map(int, selected_size.split('x'))
                     
+                    # Using OpenAI API to generate images
                     response = client.images.generate(
                         model="dall-e-3",
                         prompt=st.session_state.realistic_prompt,
@@ -400,19 +561,22 @@ def show_image_generation():
                     st.session_state.realistic_images = images
                     
                     st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                    st.markdown("#### Generated Realistic Images:")
+                    st.markdown("#### Generated Images:")
                     
-                    # Show images
-                    image_cols = st.columns(min(num_images, 2))
+                    # Show images in a modern gallery
+                    st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
                     for i, image_url in enumerate(st.session_state.realistic_images):
-                        col_idx = i % len(image_cols)
-                        with image_cols[col_idx]:
-                            st.image(image_url, use_column_width=True)
-                            if st.button(f"Select This Image #{i+1}", key=f"select_img_{i}"):
-                                st.session_state.selected_image = image_url
-                                st.session_state.active_tab = 'Cartoon Conversion'
-                                st.success(f"Image #{i+1} selected! You can now go to the Cartoon Conversion tab.")
-                                st.rerun()  # Reload page
+                        st.markdown(f"""
+                        <div class="image-card">
+                            <img src="{image_url}" style="width:100%; border-radius:8px; margin-bottom:10px;">
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if st.button(f"Select Image #{i+1}", key=f"select_img_{i}"):
+                            st.session_state.selected_image = image_url
+                            st.session_state.active_tab = 'Cartoon Conversion'
+                            st.success(f"Image #{i+1} selected! You can now go to the Cartoon Conversion tab.")
+                            st.rerun()  # Reload page
+                    st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.markdown('</div>', unsafe_allow_html=True)
                     
@@ -473,6 +637,15 @@ def show_cartoon_conversion():
             if st.button("Convert to Cartoon Style"):
                 try:
                     with st.spinner("Converting image..."):
+                        # Add loading animation
+                        st.markdown("""
+                        <div class="loading-animation">
+                            <div class="loading-dot"></div>
+                            <div class="loading-dot"></div>
+                            <div class="loading-dot"></div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
                         # Prompt for converting realistic image to cartoon style
                         style_prompt = f"""
                         Transform this realistic image into a {selected_cartoon_style} cartoon style. 
@@ -482,7 +655,7 @@ def show_cartoon_conversion():
                         Make it look professional, high-quality, and authentic to the {selected_cartoon_style} style.
                         """
                         
-                        # Convert using DALL-E API
+                        # Convert using OpenAI API
                         response = client.images.edit(
                             model="dall-e-3",
                             image=Image.open(io.BytesIO(requests.get(st.session_state.selected_image).content)),
@@ -516,9 +689,16 @@ def show_cartoon_conversion():
         
     # Previous conversions
     if st.session_state.cartoon_images:
-        st.markdown("#### Previous Conversions")
+        st.markdown('<div class="section-title"><h3>Previous Conversions</h3></div>', unsafe_allow_html=True)
+        st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
         for i, img_data in enumerate(st.session_state.cartoon_images):
-            st.image(img_data["url"], caption=f"{img_data['style']} - {img_data['timestamp']}", width=200)
+            st.markdown(f"""
+            <div class="image-card">
+                <img src="{img_data["url"]}" style="width:100%; border-radius:8px; margin-bottom:10px;">
+                <p><strong>{img_data["style"]}</strong><br>{img_data["timestamp"]}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def show_etsy_metadata():
     """Shows the Etsy metadata interface"""
@@ -552,28 +732,78 @@ def show_etsy_metadata():
         
         # Generate metadata button
         if st.button("Generate Etsy Metadata"):
-            metadata = {
-                "title": product_title,
-                "description": product_description,
-                "tags": tags.split(","),
-                "price": price,
-                "delivery_format": delivery_format,
-                "style": st.session_state.cartoon_images[-1]["style"],
-                "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "image_url": st.session_state.cartoon_images[-1]["url"]
-            }
-            
-            # Show metadata as JSON
-            st.markdown('<div class="result-container">', unsafe_allow_html=True)
-            st.markdown("#### Generated Etsy Metadata:")
-            st.json(metadata)
-            
-            # Download button
-            json_str = json.dumps(metadata, indent=2)
-            b64 = base64.b64encode(json_str.encode()).decode()
-            href = f'<a href="data:application/json;base64,{b64}" download="etsy_metadata.json">Download Metadata File</a>'
-            st.markdown(href, unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            with st.spinner("Generating metadata..."):
+                # Add loading animation
+                st.markdown("""
+                <div class="loading-animation">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                metadata = {
+                    "title": product_title,
+                    "description": product_description,
+                    "tags": tags.split(","),
+                    "price": price,
+                    "delivery_format": delivery_format,
+                    "style": st.session_state.cartoon_images[-1]["style"],
+                    "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "image_url": st.session_state.cartoon_images[-1]["url"]
+                }
+                
+                # Show metadata as JSON
+                st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                st.markdown("#### Generated Etsy Metadata:")
+                st.json(metadata)
+                
+                # Download button
+                json_str = json.dumps(metadata, indent=2)
+                b64 = base64.b64encode(json_str.encode()).decode()
+                href = f'<a href="data:application/json;base64,{b64}" download="etsy_metadata.json" class="download-btn">Download Metadata File</a>'
+                st.markdown(href, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Generate SEO suggestions
+                st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                st.markdown("#### SEO Suggestions for Etsy:")
+                
+                seo_suggestions = [
+                    "Use all 13 tags allowed by Etsy for maximum visibility",
+                    f"Include '{st.session_state.cartoon_images[-1]['style']}' in your title for better search matching",
+                    "Add 'personalized gift' as it's a high-search term",
+                    "Include specific occasions like 'birthday gift' or 'anniversary present'",
+                    "Mention 'custom portrait' as it's a popular search term",
+                    "Use long-tail keywords like 'family cartoon portrait' for better targeting",
+                    "Include relevant seasonal keywords during holidays",
+                    "Add material terms like 'digital download' or 'printable art'",
+                    "Mention turnaround time in your description for better customer expectations"
+                ]
+                
+                for suggestion in seo_suggestions:
+                    st.markdown(f"• {suggestion}")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Marketing tips
+                st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                st.markdown("#### Marketing Tips:")
+                
+                marketing_tips = [
+                    "Offer bundle discounts for multiple portraits",
+                    "Create a limited-time promotion for first-time buyers",
+                    "Add a portfolio of sample images to showcase your style range",
+                    "Include customer testimonials in your description",
+                    "Offer rush delivery as an upgrade option",
+                    "Create holiday-specific promotions",
+                    "Offer different size options at different price points"
+                ]
+                
+                for tip in marketing_tips:
+                    st.markdown(f"• {tip}")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
             
     else:
         st.info("Please first convert an image to cartoon style in the 'Cartoon Conversion' tab.")
@@ -607,6 +837,16 @@ with tabs[2]:
     else:
         st.button("Switch to This Tab", key="switch_to_tab3", on_click=lambda: setattr(st.session_state, 'active_tab', 'Etsy Metadata') or st.rerun())
 
+# App workflow guide
+st.markdown('<div class="section-title"><h3>How It Works</h3></div>', unsafe_allow_html=True)
+st.markdown("""
+1. **Generate Realistic Images**: Start by selecting a category and idea, then generate a realistic image
+2. **Convert to Cartoon**: Select your favorite image and convert it to your preferred cartoon style
+3. **Create Etsy Metadata**: Generate product details to help sell your custom portraits online
+""")
+
 # Footer
-st.markdown("---")
+st.markdown('<div class="footer">', unsafe_allow_html=True)
 st.markdown("© 2025 AI Image Generation Tool | All Rights Reserved.")
+st.markdown("Powered by OpenAI API")
+st.markdown('</div>', unsafe_allow_html=True)
