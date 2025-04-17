@@ -292,12 +292,18 @@ def download_image(image_url):
         st.session_state.notification_type = "error"
         return None
 
+# set_image_to_convert fonksiyonunu güncelleyelim
+# set_image_to_convert fonksiyonunu güncelleyelim
 def set_image_to_convert(image_url):
     """Dönüştürülecek görseli ayarla"""
     st.session_state.selected_image_to_convert = image_url
     st.session_state.active_tab = 1  # Çizgi Film Dönüştürme sekmesine geç
     st.session_state.notification = "Görsel dönüştürme için seçildi"
     st.session_state.notification_type = "info"
+    try:
+        st.rerun()  # Yeni versiyonda rerun kullan
+    except:
+        st.success("Görsel dönüştürme için seçildi. Lütfen 'Çizgi Film Dönüştürme' sekmesine geçin.")
 
 def set_image_for_etsy(image_url):
     """Etsy için görseli ayarla"""
@@ -305,6 +311,11 @@ def set_image_for_etsy(image_url):
     st.session_state.active_tab = 2  # Etsy Metadata sekmesine geç
     st.session_state.notification = "Görsel Etsy için seçildi"
     st.session_state.notification_type = "info"
+    try:
+        st.rerun()  # Yeni versiyonda rerun kullan
+    except:
+        st.success("Görsel Etsy için seçildi. Lütfen 'Etsy Metadata' sekmesine geçin.")
+
 
 # YENİ: ChatGPT ile görsel dönüştürme fonksiyonu
 def transform_image_with_openai(image_url, style):
@@ -651,17 +662,18 @@ with tab1:
                 st.image(image_url, use_column_width=True, caption=f"Gerçekçi Görsel #{i+1}")
                 
                 col1, col2 = st.columns(2)
-                with col1:
-                    # Çizgi filme dönüştürme butonu
-                    if st.button(f"Çizgi Filme Dönüştür #{i+1}", key=f"convert_{i}"):
-                        set_image_to_convert(image_url)
-                        st.experimental_rerun()  # Sayfayı yeniden yükle
-                
-                with col2:
-                    # Etsy için kullanma butonu
-                    if st.button(f"Etsy İçin Kullan #{i+1}", key=f"etsy_{i}"):
-                        set_image_for_etsy(image_url)
-                        st.experimental_rerun()  # Sayfayı yeniden yükle
+               # Gerçekçi görsel oluşturma sekmesindeki butonları güncelleyelim
+with col1:
+    # Çizgi filme dönüştürme butonu
+    if st.button(f"Çizgi Filme Dönüştür #{i+1}", key=f"convert_{i}"):
+        set_image_to_convert(image_url)
+        st.success("Görsel dönüştürme için seçildi. Lütfen 'Çizgi Film Dönüştürme' sekmesine geçin.")
+
+with col2:
+    # Etsy için kullanma butonu
+    if st.button(f"Etsy İçin Kullan #{i+1}", key=f"etsy_{i}"):
+        set_image_for_etsy(image_url)
+        st.success("Görsel Etsy için seçildi. Lütfen 'Etsy Metadata' sekmesine geçin.")
                 
                 # İndirme butonu
                 image_data = download_image(image_url)
@@ -790,7 +802,7 @@ with tab2:
                         with col1:
                             if st.button("Etsy İçin Kullan", key="use_for_etsy_cartoon"):
                                 set_image_for_etsy(cartoon_image_url)
-                                st.experimental_rerun()  # Sayfayı yeniden yükle
+                                st.rerun()  # Sayfayı yeniden yükle
                         with col2:
                             image_data = download_image(cartoon_image_url)
                             if image_data:
@@ -1000,7 +1012,7 @@ with tab4:
             st.session_state.image_history = []
             st.session_state.notification = "Görsel geçmişi temizlendi"
             st.session_state.notification_type = "info"
-            st.experimental_rerun()
+            st.rerun()
         
         # Filtreleme seçenekleri
         filter_options = ["Tümü", "Gerçekçi", "Çizgi Film"]
@@ -1041,13 +1053,13 @@ with tab4:
                 if img_data["type"] == "Realistic":
                     if st.button(f"Çizgi Filme Dönüştür", key=f"history_convert_{i}"):
                         set_image_to_convert(img_data["url"])
-                        st.experimental_rerun()  # Sayfayı yeniden yükle
+                        st.rerun()  # Sayfayı yeniden yükle
             
             with col2:
                 # Etsy için kullanma butonu
                 if st.button(f"Etsy İçin Kullan", key=f"history_etsy_{i}"):
                     set_image_for_etsy(img_data["url"])
-                    st.experimental_rerun()  # Sayfayı yeniden yükle
+                    st.rerun()  # Sayfayı yeniden yükle
             
             # İndirme butonu
             image_data = download_image(img_data["url"])
