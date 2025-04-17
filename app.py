@@ -922,4 +922,54 @@ def show_image_history():
         st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
         for i, img_data in enumerate(reversed(st.session_state.image_history[-12:])):
             st.markdown('<div class="image-card">', unsafe_allow_html=True)
+            st.image(img_data["url"], use_column_width=True, 
+                    caption=f"{img_data['type']} - {img_data['timestamp']}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Select Image", key=f"select_hist_{i}"):
+                    select_image(img_data["url"], 'Etsy Metadata')
+            with col2:
+                st.download_button(
+                    label="Download",
+                    data=download_image(img_data["url"], f"history_image_{i}.png"),
+                    file_name=f"history_image_{i}.png",
+                    mime="image/png",
+                    key=f"download_hist_{i}"
+                )
+            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("Henüz görsel oluşturulmadı. Görsel geçmişi burada görünecek.")
+
+# Ana uygulama yapısı
+tabs = ["Image Generation", "Cartoon Generation", "Etsy Metadata", "Image History"]
+selected_tab_index = tabs.index(st.session_state.active_tab) if st.session_state.active_tab in tabs else 0
+
+tab1, tab2, tab3, tab4 = st.tabs(tabs)
+
+with tab1:
+    if st.session_state.active_tab == "Image Generation" or selected_tab_index == 0:
+        show_image_generation()
+
+with tab2:
+    if st.session_state.active_tab == "Cartoon Generation" or selected_tab_index == 1:
+        show_cartoon_generation()
+
+with tab3:
+    if st.session_state.active_tab == "Etsy Metadata" or selected_tab_index == 2:
+        show_etsy_metadata()
+
+with tab4:
+    if st.session_state.active_tab == "Image History" or selected_tab_index == 3:
+        show_image_history()
+
+# Footer
+st.markdown("""
+<div class="footer">
+    <p>Telif hakkı © 2025</p>
+    <p>Tüm görseller, OpenAI'nin kullanım koşullarına uygun olarak kullanılmaktadır.</p>
+</div>
+""", unsafe_allow_html=True)
+
 
