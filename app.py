@@ -30,6 +30,10 @@ if 'image_history' not in st.session_state:
     st.session_state.image_history = []
 if 'image_to_convert' not in st.session_state:
     st.session_state.image_to_convert = None
+if 'page_needs_rerun' not in st.session_state:
+    st.session_state.page_needs_rerun = False
+if 'last_action' not in st.session_state:
+    st.session_state.last_action = None
 
 # Page configuration
 st.set_page_config(page_title="AI Image Generation Tool", layout="wide")
@@ -318,6 +322,22 @@ st.markdown("""
         font-size: 0.9em;
         color: #aaa;
     }
+    .notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #ff4b4b;
+        color: white;
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        z-index: 1000;
+        animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -331,19 +351,20 @@ st.markdown("""
 
 st.markdown("### Realistic Image Generation & Cartoon Conversion Assistant")
 
-# Function to select an image and switch tabs
+# Function to select an image and switch tabs without rerunning
 def select_image(image_url, next_tab):
     st.session_state.selected_image = image_url
     st.session_state.active_tab = next_tab
-    st.rerun()
+    st.session_state.last_action = f"Görsel seçildi ve {next_tab} sekmesine geçildi"
 
-# Function to set image for conversion
+# Function to set image for conversion without rerunning
 def set_image_to_convert(image_url):
     st.session_state.image_to_convert = image_url
     st.session_state.active_tab = 'Cartoon Conversion'
-    st.rerun()
+    st.session_state.last_action = "Görsel çizgi filme dönüştürmek üzere seçildi"
 
 # Function to download image
+@st.cache_data(ttl=3600)
 def download_image(image_url, filename):
     try:
         response = requests.get(image_url)
@@ -420,10 +441,100 @@ def generate_cartoon_prompt(style, description, image_url=None):
     
     return response.choices[0].message.content.strip()
 
+# Generate images without rerunning
+def generate_realistic_images(prompt, num_images, selected_size, selected_quality):
+    """Generate realistic images without rerunning the page"""
+    images = []
+    progress_placeholder = st.empty()
+    
+    try:
+        for i in range(num_images):
+            # Update progress
+            progress_placeholder.progress((i) / num_images, text=f"Görsel {i+1}/{num_images} oluşturuluyor...")
+            
+            # Generate image with enhanced prompt for better realism
+            response = client.images.generate(
+                model="dall-e-3",
+                prompt=prompt + " Make sure this is a photorealistic image, not a cartoon or illustration. Use photographic style with realistic lighting and textures.",
+                n=1,  # DALL-E 3 only supports n=1
+                size=selected_size,
+                quality=selected_quality
+            )
+            
+            for data in response.data:
+                image_url = data.url
+                images.append(image_url)
+                # Add to history with timestamp
+                st.session_state.image_history.append({
+                    "url": image_url,
+                    "type": "Realistic",
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+        
+        # Clear progress bar after completion
+        progress_placeholder.empty()
+        
+        # Update session state
+        st.session_state.realistic_images = images
+        st.session_state.last_action = f"{num_images} gerçekçi görsel oluşturuldu"
+        
+        return images
+    
+    except Exception as e:
+        progress_placeholder.empty()
+        st.error(f"Görsel oluşturma hatası: {e}")
+        return []
+
+# Convert image to cartoon without rerunning
+def convert_to_cartoon(image_url, style, customization, quality):
+    """Convert image to cartoon without rerunning the page"""
+    try:
+        # Generate cartoon prompt based on selected style
+        cartoon_prompt = generate_cartoon_prompt(
+            style,
+            customization
+        )
+        
+        # Store the prompt
+        st.session_state.cartoon_prompt = cartoon_prompt
+        
+        # Use the prompt to generate a cartoon version
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=cartoon_prompt + f" Based on this realistic image. Make it a high-quality {style} style cartoon.",
+            n=1,
+            size="1024x1024",
+            quality=quality
+        )
+        
+        cartoon_image_url = response.data[0].url
+        
+        # Add to cartoon images and history
+        st.session_state.cartoon_images.append(cartoon_image_url)
+        st.session_state.image_history.append({
+            "url": cartoon_image_url,
+            "type": f"Cartoon ({style})",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        st.session_state.last_action = f"Görsel {style} çizgi film stiline dönüştürüldü"
+        
+        return cartoon_image_url
+    
+    except Exception as e:
+        st.error(f"Dönüştürme hatası: {str(e)}")
+        return None
+
 # Functions for each tab
 def show_image_generation():
     """Shows the image generation interface"""
     st.markdown('<div class="section-title"><h3>Gerçekçi Görsel Oluşturma</h3></div>', unsafe_allow_html=True)
+    
+    # Show notification if there's a last action
+    if st.session_state.last_action:
+        st.success(st.session_state.last_action)
+        # Clear the last action after showing it
+        st.session_state.last_action = None
     
     col1, col2 = st.columns(2)
     
@@ -628,502 +739,63 @@ def show_image_generation():
         """, unsafe_allow_html=True)
         
         # Generate prompt button
-        if st.button("Prompt Oluştur", key="gen_prompt_btn"):
-            with st.spinner("Prompt oluşturuluyor..."):
-                # Add loading animation
-                st.markdown("""
-                <div class="loading-animation">
-                    <div class="loading-dot"></div>
-                    <div class="loading-dot"></div>
-                    <div class="loading-dot"></div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                try:
-                    # Use cached function for better performance
-                    realistic_prompt = generate_ai_prompt(
-                        selected_category, 
-                        selected_idea, 
-                        selected_ethnicity, 
-                        selected_style, 
-                        additional_details
-                    )
-                    
-                    st.session_state.realistic_prompt = realistic_prompt
-                    
-                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                    st.markdown("#### Oluşturulan Prompt:")
-                    st.text_area("", realistic_prompt, height=150, key="prompt_result")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                except Exception as e:
-                    st.error(f"Prompt oluşturma hatası: {e}")
+        prompt_col1, prompt_col2 = st.columns(2)
+        with prompt_col1:
+            generate_prompt_btn = st.button("Prompt Oluştur", key="gen_prompt_btn", use_container_width=True)
         
-        # Generate images button
-        if st.button("Görsel Oluştur", key="gen_img_btn") and st.session_state.realistic_prompt:
-            # Create a placeholder for the progress bar
-            progress_placeholder = st.empty()
+        with prompt_col2:
+            generate_images_btn = st.button("Görsel Oluştur", key="gen_img_btn", use_container_width=True, 
+                                          disabled=not st.session_state.realistic_prompt)
+    
+    # Handle prompt generation without page rerun
+    if generate_prompt_btn:
+        with st.spinner("Prompt oluşturuluyor..."):
+            # Add loading animation
+            st.markdown("""
+            <div class="loading-animation">
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+            </div>
+            """, unsafe_allow_html=True)
             
             try:
-                images = []
-                for i in range(num_images):
-                    # Update progress
-                    progress_placeholder.progress((i) / num_images, text=f"Görsel {i+1}/{num_images} oluşturuluyor...")
-                    
-                    # Generate image with enhanced prompt for better realism
-                    response = client.images.generate(
-                        model="dall-e-3",
-                        prompt=st.session_state.realistic_prompt + " Make sure this is a photorealistic image, not a cartoon or illustration. Use photographic style with realistic lighting and textures.",
-                        n=1,  # DALL-E 3 only supports n=1
-                        size=selected_size,
-                        quality=selected_quality
-                    )
-                    
-                    for data in response.data:
-                        image_url = data.url
-                        images.append(image_url)
-                        # Add to history with timestamp
-                        st.session_state.image_history.append({
-                            "url": image_url,
-                            "type": "Realistic",
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
+                # Use cached function for better performance
+                realistic_prompt = generate_ai_prompt(
+                    selected_category, 
+                    selected_idea, 
+                    selected_ethnicity, 
+                    selected_style, 
+                    additional_details
+                )
                 
-                # Clear progress bar after completion
-                progress_placeholder.empty()
+                st.session_state.realistic_prompt = realistic_prompt
                 
-                st.session_state.realistic_images = images
+                st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                st.markdown("#### Oluşturulan Prompt:")
+                st.text_area("", realistic_prompt, height=150, key="prompt_result")
+                st.markdown('</div>', unsafe_allow_html=True)
                 
+            except Exception as e:
+                st.error(f"Prompt oluşturma hatası: {e}")
+    
+    # Handle image generation without page rerun
+    if generate_images_btn and st.session_state.realistic_prompt:
+        with st.spinner("Görseller oluşturuluyor..."):
+            # Generate images
+            images = generate_realistic_images(
+                st.session_state.realistic_prompt,
+                num_images,
+                selected_size,
+                selected_quality
+            )
+            
+            if images:
                 st.markdown('<div class="result-container">', unsafe_allow_html=True)
                 st.markdown("#### Oluşturulan Gerçekçi Görseller:")
                 
                 # Show images in a modern gallery
                 st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
-                for i, image_url in enumerate(st.session_state.realistic_images):
+                for i, image_url in enumerate(images):
                     st.markdown('<div class="image-card">', unsafe_allow_html=True)
-                    st.image(image_url, use_column_width=True, caption=f"Gerçekçi Görsel #{i+1}")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        # Button to convert to cartoon
-                        if st.button(f"Çizgi Filme Dönüştür #{i+1}", key=f"convert_{i}"):
-                            set_image_to_convert(image_url)
-                    
-                    with col2:
-                        # Button to use for Etsy metadata
-                        if st.button(f"Etsy İçin Kullan #{i+1}", key=f"etsy_{i}"):
-                            select_image(image_url, 'Etsy Metadata')
-                    
-                    with col3:
-                        # Download button
-                        st.download_button(
-                            label="İndir",
-                            data=download_image(image_url, f"realistic_image_{i+1}.png"),
-                            file_name=f"realistic_image_{i+1}.png",
-                            mime="image/png",
-                            key=f"download_{i}"
-                        )
-                    st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"Görsel oluşturma hatası: {e}")
-                st.error("Lütfen farklı bir prompt deneyin veya API anahtarınızı kontrol edin.")
-
-def show_cartoon_conversion():
-    """Shows the cartoon conversion interface"""
-    st.markdown('<div class="section-title"><h3>Çizgi Film Stiline Dönüştürme</h3></div>', unsafe_allow_html=True)
-    
-    # Check if we have an image to convert
-    if st.session_state.image_to_convert:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### Dönüştürülecek Gerçekçi Görsel")
-            st.image(st.session_state.image_to_convert, use_column_width=True)
-        
-        with col2:
-            st.markdown("#### Çizgi Film Stili Seçimi")
-            
-            # Cartoon style selection with visual examples
-            cartoon_style_options = [
-                "Pixar 3D",
-                "Disney 2D Animation",
-                "DreamWorks",
-                "Anime",
-                "South Park",
-                "The Simpsons",
-                "Studio Ghibli",
-                "Comic Book",
-                "Watercolor Illustration",
-                "Claymation"
-            ]
-            
-            # Visual selection of cartoon styles
-            st.markdown("##### Stil Seçin:")
-            
-            # Create a grid of style options with 2 columns
-            style_cols = st.columns(2)
-            selected_style = None
-            
-            # Display style options in a visual grid
-            for i, style in enumerate(cartoon_style_options):
-                col_idx = i % 2
-                with style_cols[col_idx]:
-                    if st.button(style, key=f"style_{i}", use_container_width=True):
-                        selected_style = style
-            
-            # If a style was selected
-            if selected_style:
-                st.success(f"Seçilen stil: {selected_style}")
-                
-                # Additional customization
-                st.markdown("##### Özelleştirme:")
-                customization = st.text_area(
-                    "Ek stil detayları (İsteğe bağlı)",
-                    placeholder="Örn: canlı renkler, abartılı yüz ifadeleri..."
-                )
-                
-                # Conversion quality
-                quality_options = ["Standard", "HD"]
-                selected_quality = st.selectbox("Dönüşüm Kalitesi", quality_options)
-                
-                  # Convert button
-                if st.button("Çizgi Filme Dönüştür", key="convert_btn"):
-                    with st.spinner(f"{selected_style} stiline dönüştürülüyor..."):
-                        # Add loading animation
-                        st.markdown("""
-                        <div class="loading-animation">
-                            <div class="loading-dot"></div>
-                            <div class="loading-dot"></div>
-                            <div class="loading-dot"></div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        try:
-                            # Generate cartoon prompt based on selected style
-                            cartoon_prompt = generate_cartoon_prompt(
-                                selected_style,
-                                customization
-                            )
-                            
-                            # Store the prompt
-                            st.session_state.cartoon_prompt = cartoon_prompt
-                            
-                            # Show the prompt
-                            with st.expander("Oluşturulan Dönüşüm Promptu"):
-                                st.text_area("", cartoon_prompt, height=100)
-                            
-                            # Convert the image using DALL-E
-                            quality_api = "standard" if selected_quality == "Standard" else "hd"
-                            
-                            # Use the prompt to generate a cartoon version
-                            response = client.images.generate(
-                                model="dall-e-3",
-                                prompt=cartoon_prompt + f" Based on this realistic image. Make it a high-quality {selected_style} style cartoon.",
-                                n=1,
-                                size="1024x1024",
-                                quality=quality_api
-                            )
-                            
-                            cartoon_image_url = response.data[0].url
-                            
-                            # Add to cartoon images and history
-                            st.session_state.cartoon_images.append(cartoon_image_url)
-                            st.session_state.image_history.append({
-                                "url": cartoon_image_url,
-                                "type": f"Cartoon ({selected_style})",
-                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            })
-                            
-                            # Show the result
-                            st.markdown("#### Dönüştürülen Çizgi Film Görseli:")
-                            st.image(cartoon_image_url, use_column_width=True)
-                            
-                            # Action buttons for the cartoon image
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("Etsy İçin Kullan", key="use_for_etsy"):
-                                    select_image(cartoon_image_url, 'Etsy Metadata')
-                            with col2:
-                                st.download_button(
-                                    label="Görseli İndir",
-                                    data=download_image(cartoon_image_url, f"cartoon_{selected_style.lower().replace(' ', '_')}.png"),
-                                    file_name=f"cartoon_{selected_style.lower().replace(' ', '_')}.png",
-                                    mime="image/png",
-                                    key="download_cartoon"
-                                )
-                            
-                            # Show before-after comparison
-                            st.markdown("#### Karşılaştırma:")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown("**Öncesi (Gerçekçi)**")
-                                st.image(st.session_state.image_to_convert, use_column_width=True)
-                            with col2:
-                                st.markdown(f"**Sonrası ({selected_style})**")
-                                st.image(cartoon_image_url, use_column_width=True)
-                                
-                        except Exception as e:
-                            st.error(f"Dönüştürme hatası: {str(e)}")
-                            st.error("Lütfen başka bir stil deneyin veya API anahtarınızı kontrol edin.")
-    else:
-        # No image selected for conversion
-        st.info("Lütfen önce 'Gerçekçi Görsel Oluşturma' sekmesinden bir görsel oluşturun ve 'Çizgi Filme Dönüştür' butonuna tıklayın.")
-        
-        # Show recent realistic images if available
-        if st.session_state.realistic_images:
-            st.markdown("#### Son Oluşturulan Gerçekçi Görseller")
-            st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
-            for i, image_url in enumerate(st.session_state.realistic_images[-4:]):  # Show last 4 images
-                st.markdown('<div class="image-card">', unsafe_allow_html=True)
-                st.image(image_url, use_column_width=True, caption=f"Görsel #{i+1}")
-                if st.button(f"Bu Görseli Dönüştür #{i+1}", key=f"convert_recent_{i}"):
-                    set_image_to_convert(image_url)
-                st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Or show images from history
-        elif st.session_state.image_history:
-            st.markdown("#### Geçmiş Görsellerden Seçin")
-            st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
-            # Filter only realistic images
-            realistic_images = [img for img in st.session_state.image_history if img["type"] == "Realistic"]
-            for i, img_data in enumerate(realistic_images[-4:]):  # Show last 4 realistic images
-                st.markdown('<div class="image-card">', unsafe_allow_html=True)
-                st.image(img_data["url"], use_column_width=True, caption=f"Görsel {img_data['timestamp']}")
-                if st.button(f"Bu Görseli Dönüştür #{i+1}", key=f"convert_hist_{i}"):
-                    set_image_to_convert(img_data["url"])
-                st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-def show_etsy_metadata():
-    """Shows the Etsy metadata interface"""
-    st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
-    
-    if st.session_state.selected_image:
-        st.markdown("#### Seçilen Görsel")
-        st.image(st.session_state.selected_image, width=300)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            product_title = st.text_input("Ürün Başlığı", "Özel Fotoğraftan Portre")
-            product_description = st.text_area(
-                "Ürün Açıklaması", 
-                """Fotoğrafınızdan oluşturulan özel dijital portre.
-                Tamamen kişiselleştirilmiş, yüksek çözünürlüklü dijital dosya olarak teslim edilir.
-                Baskı için mükemmel, anında indirilebilir."""
-            )
-        
-        with col2:
-            tags = st.text_input(
-                "Etiketler (virgülle ayrılmış)",
-                "özel portre, dijital sanat, kişiselleştirilmiş hediye, aile portresi, fotoğraftan sanata"
-            )
-            price = st.number_input("Fiyat ($)", min_value=5.0, value=19.99, step=1.0)
-            delivery_format = st.selectbox(
-                "Teslimat Formatı",
-                ["Dijital İndirme (JPG & PNG)", "Dijital İndirme + Baskı", "Sadece Baskı"]
-            )
-        
-        # Generate metadata button
-        if st.button("Etsy Metadata Oluştur"):
-            with st.spinner("Metadata oluşturuluyor..."):
-                # Add loading animation
-                st.markdown("""
-                <div class="loading-animation">
-                    <div class="loading-dot"></div>
-                    <div class="loading-dot"></div>
-                    <div class="loading-dot"></div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Determine if the selected image is cartoon or realistic
-                image_type = "Cartoon"
-                for item in st.session_state.image_history:
-                    if item["url"] == st.session_state.selected_image:
-                        image_type = item["type"]
-                        break
-                
-                metadata = {
-                    "title": product_title,
-                    "description": product_description,
-                    "tags": tags.split(","),
-                    "price": price,
-                    "delivery_format": delivery_format,
-                    "image_type": image_type,
-                    "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "image_url": st.session_state.selected_image
-                }
-                
-                # Show metadata as JSON
-                st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                st.markdown("#### Oluşturulan Etsy Metadata:")
-                st.json(metadata)
-                
-                # Download button
-                json_str = json.dumps(metadata, indent=2)
-                b64 = base64.b64encode(json_str.encode()).decode()
-                href = f'<a href="data:application/json;base64,{b64}" download="etsy_metadata.json" class="download-btn">Metadata Dosyasını İndir</a>'
-                st.markdown(href, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Generate SEO suggestions
-                st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                st.markdown("#### Etsy için SEO Önerileri:")
-                
-                seo_suggestions = [
-                    "Maksimum görünürlük için Etsy'nin izin verdiği tüm 13 etiketi kullanın",
-                    "Daha iyi arama eşleşmesi için başlığınıza 'özel portre' ekleyin",
-                    "'kişiselleştirilmiş hediye' yüksek arama hacmine sahip bir terimdir",
-                    "'doğum günü hediyesi' veya 'yıldönümü hediyesi' gibi özel vesileler ekleyin",
-                    "'özel portre' popüler bir arama terimidir",
-                    "Daha iyi hedefleme için 'aile çizgi film portresi' gibi uzun kuyruklu anahtar kelimeler kullanın",
-                    "Tatil dönemlerinde ilgili mevsimsel anahtar kelimeler ekleyin",
-                    "'dijital indirme' veya 'yazdırılabilir sanat' gibi materyal terimleri ekleyin",
-                    "Daha iyi müşteri beklentileri için açıklamanızda teslim süresinden bahsedin",
-                    "Alıcıların aradığı anahtar kelimeleri kullanın",
-                    "Ana anahtar kelimelerinizin varyasyonlarını ekleyin (portre, portreler, portre sanatı)",
-                    "Görünürlüğü artırmak için 'el yapımı' veya 'özel yapım' gibi nitelikler ekleyin",
-                    "Ürün kategorinizle ilgili trend olan anahtar kelimeleri kullanmayı düşünün"
-                ]
-                
-                for suggestion in seo_suggestions:
-                    st.markdown(f"• {suggestion}")
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Marketing tips
-                st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                st.markdown("#### Pazarlama İpuçları:")
-                
-                marketing_tips = [
-                    "Birden fazla portre için paket indirimleri sunun",
-                    "İlk kez alışveriş yapanlar için sınırlı süreli promosyon oluşturun",
-                    "Stil aralığınızı göstermek için örnek görsellerden oluşan bir portföy ekleyin",
-                    "Açıklamanıza müşteri görüşleri ekleyin",
-                    "Ek ücret karşılığında acil teslimat seçeneği sunun",
-                    "Tatile özel promosyonlar oluşturun",
-                    "Farklı fiyat noktalarında farklı boyut seçenekleri sunun",
-                    "İş kalitenizi göstermek için öncesi/sonrası örnekleri sağlayın",
-                    "Müşterilerin başkaları için satın alabileceği hediye çekleri oluşturun",
-                    "Ek hizmet olarak çerçeveleme seçenekleri sunun",
-                    "Geri dönen müşteriler için bir sadakat programı oluşturun"
-                ]
-                
-                for tip in marketing_tips:
-                    st.markdown(f"• {tip}")
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-    else:
-        st.info("Lütfen önce 'Gerçekçi Görsel Oluşturma' veya 'Çizgi Film Dönüşümü' sekmesinden bir görsel seçin.")
-        if st.button("Görsel Oluşturmaya Git"):
-            st.session_state.active_tab = 'Image Generation'
-            st.rerun()
-
-def show_image_history():
-    """Shows the history of generated images"""
-    st.markdown('<div class="section-title"><h3>Oluşturulan Görsel Geçmişi</h3></div>', unsafe_allow_html=True)
-    
-    if st.session_state.image_history:
-        # Add filter options
-        col1, col2 = st.columns(2)
-        with col1:
-            filter_type = st.multiselect(
-                "Görsel Tipine Göre Filtrele",
-                options=["Realistic", "Cartoon"],
-                default=["Realistic", "Cartoon"]
-            )
-        with col2:
-            sort_order = st.selectbox(
-                "Sıralama Düzeni",
-                options=["En Yeni Önce", "En Eski Önce"]
-            )
-        
-        # Filter and sort images
-        filtered_images = [img for img in st.session_state.image_history 
-                          if any(img_type in img["type"] for img_type in filter_type)]
-        
-        if sort_order == "En Yeni Önce":
-            filtered_images = list(reversed(filtered_images))
-        
-        if filtered_images:
-            st.markdown("#### Önceden Oluşturulan Görseller")
-            st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
-            for i, img_data in enumerate(filtered_images[:12]):  # Show max 12 images
-                st.markdown('<div class="image-card">', unsafe_allow_html=True)
-                st.image(img_data["url"], use_column_width=True, 
-                        caption=f"{img_data['type']} - {img_data['timestamp']}")
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if "Realistic" in img_data["type"]:
-                        if st.button(f"Dönüştür", key=f"convert_hist_{i}"):
-                            set_image_to_convert(img_data["url"])
-                
-                with col2:
-                    if st.button(f"Etsy İçin Kullan", key=f"etsy_hist_{i}"):
-                        select_image(img_data["url"], 'Etsy Metadata')
-                
-                with col3:
-                    st.download_button(
-                        label="İndir",
-                        data=download_image(img_data["url"], f"history_image_{i}.png"),
-                        file_name=f"history_image_{i}.png",
-                        mime="image/png",
-                        key=f"download_hist_{i}"
-                    )
-                st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Clear history button
-            if st.button("Geçmişi Temizle", key="clear_history"):
-                st.session_state.image_history = []
-                st.rerun()
-        else:
-            st.info("Seçilen filtrelere uygun görsel bulunamadı.")
-    else:
-        st.info("Henüz görsel oluşturulmadı. Görsel geçmişi burada görünecek.")
-
-# Ana uygulama yapısı
-tabs = ["Gerçekçi Görsel Oluşturma", "Çizgi Film Dönüşümü", "Etsy Metadata", "Görsel Geçmişi"]
-tab_mapping = {
-    "Image Generation": "Gerçekçi Görsel Oluşturma",
-    "Cartoon Conversion": "Çizgi Film Dönüşümü",
-    "Etsy Metadata": "Etsy Metadata",
-    "Image History": "Görsel Geçmişi"
-}
-
-# Map session state tab to UI tab
-selected_tab = tab_mapping.get(st.session_state.active_tab, "Gerçekçi Görsel Oluşturma")
-selected_tab_index = tabs.index(selected_tab) if selected_tab in tabs else 0
-
-tab1, tab2, tab3, tab4 = st.tabs(tabs)
-
-with tab1:
-    if selected_tab == "Gerçekçi Görsel Oluşturma":
-        show_image_generation()
-
-with tab2:
-    if selected_tab == "Çizgi Film Dönüşümü":
-        show_cartoon_conversion()
-
-with tab3:
-    if selected_tab == "Etsy Metadata":
-        show_etsy_metadata()
-
-with tab4:
-    if selected_tab == "Görsel Geçmişi":
-        show_image_history()
-
-# Footer
-st.markdown("""
-<div class="footer">
-    <p>Telif hakkı © 2025</p>
-    <p>Tüm görseller, OpenAI'nin kullanım koşullarına uygun olarak kullanılmaktadır.</p>
-</div>
-""", unsafe_allow_html=True)
+                    st.image(image_url, use_column_width=True, caption=f"Gerçekçi Görsel #{i+
