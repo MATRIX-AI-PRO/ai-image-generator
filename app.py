@@ -438,7 +438,7 @@ def show_image_generation():
         selected_quality = quality_options_api[quality_options_display.index(quality_index)]
 
         # Number of images - updated with better UX
-        num_images = st.slider("Number of Images to Generate", 1, 4, 2)
+        num_images = st.slider("Number of Images to Generate", 1, 4, 1)
         
         # Progress steps visualization
         st.markdown("""
@@ -542,13 +542,11 @@ def show_image_generation():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    width, height = map(int, selected_size.split('x'))
-                    
                     # Using OpenAI API to generate images
                     response = client.images.generate(
                         model="dall-e-3",
                         prompt=st.session_state.realistic_prompt,
-                        n=num_images,
+                        n=1,  # DALL-E 3 only supports n=1
                         size=selected_size,
                         quality=selected_quality
                     )
@@ -581,7 +579,8 @@ def show_image_generation():
                     st.markdown('</div>', unsafe_allow_html=True)
                     
             except Exception as e:
-                st.error(f"Error generating images: {e}")
+                st.error(f"Error generating images: {str(e)}")
+                st.error("Please try a different prompt or check your API key.")
 
 def show_cartoon_conversion():
     """Shows the cartoon conversion interface"""
@@ -655,13 +654,13 @@ def show_cartoon_conversion():
                         Make it look professional, high-quality, and authentic to the {selected_cartoon_style} style.
                         """
                         
-                        # Convert using OpenAI API
-                        response = client.images.edit(
+                        # Generate a new cartoon image based on the description of the realistic image
+                        response = client.images.generate(
                             model="dall-e-3",
-                            image=Image.open(io.BytesIO(requests.get(st.session_state.selected_image).content)),
                             prompt=style_prompt,
                             n=1,
-                            size="1024x1024"
+                            size="1024x1024",
+                            quality="standard"
                         )
                         
                         cartoon_image_url = response.data[0].url
@@ -680,7 +679,8 @@ def show_cartoon_conversion():
                             st.rerun()
                         
                 except Exception as e:
-                    st.error(f"Error converting image: {e}")
+                    st.error(f"Error converting image: {str(e)}")
+                    st.error("Please try a different image or style.")
     else:
         st.info("Please first create and select an image from the 'Image Generation' tab.")
         if st.button("Go to Image Generation"):
