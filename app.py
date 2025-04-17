@@ -347,63 +347,67 @@ def set_image_for_etsy(image_url):
 def direct_style_transfer(image_url, style_name):
     """Doğrudan görsel stil transferi yapan fonksiyon"""
     try:
-        # Görüntüyü yükle
+        # Görüntüyü yükle ve base64'e dönüştür
         if image_url.startswith('data:image'):
-            # Base64 formatındaki görüntüyü işle
-            header, encoded = image_url.split(",", 1)
-            image_data = base64.b64decode(encoded)
-            image = Image.open(BytesIO(image_data))
+            # Zaten base64 formatında
+            base64_image = image_url.split(",", 1)[1]
+            image_url_for_api = image_url
         else:
             # URL'den görüntüyü yükle
             response = requests.get(image_url)
             image = Image.open(BytesIO(response.content))
+            buffered = BytesIO()
+            image.save(buffered, format="PNG")
+            base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            image_url_for_api = f"data:image/png;base64,{base64_image}"
         
-        # Stil transferi için prompt oluştur
-        style_prompts = {
-            "Pixar 3D": "Create a Pixar 3D style animated character based on this person.",
-            "Disney 2D Animation": "Create a Disney 2D style animated character based on this person.",
-            "DreamWorks": "Create a DreamWorks style animated character based on this person.",
-            "Anime": "Create an anime style character based on this person.",
-            "South Park": "Create a South Park style character based on this person.",
-            "The Simpsons": "Create a Simpsons style character based on this person.",
-            "Studio Ghibli": "Create a Studio Ghibli style character based on this person."
+        # Stil açıklamaları
+        style_descriptions = {
+            "Pixar 3D": "a Pixar 3D animation style with characteristic large eyes, stylized features, and high-quality 3D rendering",
+            "Disney 2D Animation": "a Disney 2D animation style with fluid lines, expressive eyes, and vibrant colors",
+            "DreamWorks": "a DreamWorks animation style with exaggerated expressions and detailed texturing",
+            "Anime": "an anime style with large eyes, colorful hair, and simplified facial features",
+            "South Park": "a South Park style with simple shapes, flat colors, and characteristic animation",
+            "The Simpsons": "a Simpsons style with yellow skin, overbite, and the distinctive Simpsons look",
+            "Studio Ghibli": "a Studio Ghibli style with soft colors, detailed backgrounds, and whimsical character design"
         }
         
-        # Seçilen stile göre prompt al
-        style_prompt = style_prompts.get(style_name, "Create a cartoon character based on this person.")
+        # Seçilen stil açıklaması
+        style_desc = style_descriptions.get(style_name, "a cartoon style")
         
-        # Görüntüyü base64'e dönüştür
-        buffered = BytesIO()
-        image.save(buffered, format="PNG")
-        base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        
-        # DALL-E ile görsel oluşturma (vision özelliğini kullanarak)
+        # GPT-4o Vision ile görseli analiz et ve stil transferi için detaylı prompt oluştur
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
+                    "role": "system",
+                    "content": f"You are an expert in image analysis and art direction. Your task is to create a detailed prompt for DALL-E to transform the provided image into {style_desc}. Focus on the person's facial features, expression, pose, clothing, and any distinctive elements. The transformation should maintain the person's identity but adapt it to the new style."
+                },
+                {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": style_prompt},
+                        {"type": "text", "text": f"Analyze this image and create a detailed prompt to transform it into {style_name} style. Maintain the person's identity, expression, pose, and key features, but adapt the visual style."},
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/png;base64,{base64_image}"
+                                "url": image_url_for_api
                             }
                         }
                     ]
                 }
             ],
-            max_tokens=300
+            max_tokens=500
         )
         
-        # GPT-4o'dan alınan açıklamayı DALL-E'ye gönder
-        description = response.choices[0].message.content
+        # GPT-4o'dan alınan detaylı prompt
+        detailed_prompt = response.choices[0].message.content
         
         # DALL-E ile görsel oluştur
+        final_prompt = f"{detailed_prompt} The result should look exactly like the person in the original image but in {style_name} style. Maintain the same pose, expression, and key features. This is very important: make sure the character looks like the same person."
+        
         image_response = client.images.generate(
             model="dall-e-3",
-            prompt=f"{description} Make it look exactly like a {style_name} character.",
+            prompt=final_prompt,
             n=1,
             size="1024x1024"
         )
@@ -415,6 +419,7 @@ def direct_style_transfer(image_url, style_name):
     except Exception as e:
         st.error(f"Stil transferi sırasında bir hata oluştu: {str(e)}")
         return None
+
 
 # Aktif sekmeyi ayarla
 if st.session_state.active_tab == 0:
