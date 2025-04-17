@@ -23,6 +23,10 @@ if 'cartoon_images' not in st.session_state:
     st.session_state.cartoon_images = []
 if 'realistic_prompt' not in st.session_state:
     st.session_state.realistic_prompt = ""
+if 'cartoon_prompt' not in st.session_state:
+    st.session_state.cartoon_prompt = ""
+if 'image_history' not in st.session_state:
+    st.session_state.image_history = []
 
 # Page configuration
 st.set_page_config(page_title="AI Image Generation Tool", layout="wide")
@@ -271,6 +275,15 @@ def select_image(image_url, next_tab):
     st.session_state.active_tab = next_tab
     st.rerun()
 
+# Function to download image
+def download_image(image_url, filename):
+    response = requests.get(image_url)
+    image = Image.open(BytesIO(response.content))
+    buf = BytesIO()
+    image.save(buf, format="PNG")
+    byte_im = buf.getvalue()
+    return byte_im
+
 # Functions
 def show_image_generation():
     """Shows the image generation interface"""
@@ -466,7 +479,7 @@ def show_image_generation():
         <div class="tips-box">
             <h4>💡 Tips for Better Results</h4>
             <ul>
-                <li>Be specific about appearance details</li>
+                                <li>Be specific about appearance details</li>
                 <li>Mention lighting conditions for better mood</li>
                 <li>Include background information</li>
                 <li>Specify camera angle if important</li>
@@ -545,19 +558,26 @@ def show_image_generation():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Using OpenAI API to generate REALISTIC images
-                    response = client.images.generate(
-                        model="dall-e-3",
-                        prompt=st.session_state.realistic_prompt + " Make sure this is a photorealistic image, not a cartoon or illustration. Use photographic style with realistic lighting and textures.",
-                        n=1,  # DALL-E 3 only supports n=1
-                        size=selected_size,
-                        quality=selected_quality
-                    )
-                    
                     images = []
-                    for data in response.data:
-                        image_url = data.url
-                        images.append(image_url)
+                    # DALL-E 3 supports only 1 image per request, so loop for multiple images
+                    for _ in range(num_images):
+                        response = client.images.generate(
+                            model="dall-e-3",
+                            prompt=st.session_state.realistic_prompt + " Make sure this is a photorealistic image, not a cartoon or illustration. Use photographic style with realistic lighting and textures.",
+                            n=1,  # DALL-E 3 only supports n=1
+                            size=selected_size,
+                            quality=selected_quality
+                        )
+                        
+                        for data in response.data:
+                            image_url = data.url
+                            images.append(image_url)
+                            # Add to history with timestamp
+                            st.session_state.image_history.append({
+                                "url": image_url,
+                                "type": "Realistic",
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            })
                     
                     st.session_state.realistic_images = images
                     
@@ -567,13 +587,21 @@ def show_image_generation():
                     # Show images in a modern gallery
                     st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
                     for i, image_url in enumerate(st.session_state.realistic_images):
-                        col1, col2 = st.columns([3, 1])
+                        st.markdown('<div class="image-card">', unsafe_allow_html=True)
+                        st.image(image_url, use_column_width=True, caption=f"Realistic Image #{i+1}")
+                        col1, col2 = st.columns(2)
                         with col1:
-                            st.image(image_url, use_column_width=True, caption=f"Realistic Image #{i+1}")
-                        with col2:
-                            st.markdown("<br><br>", unsafe_allow_html=True)
                             if st.button(f"Select Image #{i+1}", key=f"select_img_{i}"):
                                 select_image(image_url, 'Etsy Metadata')
+                        with col2:
+                            st.download_button(
+                                label="Download",
+                                data=download_image(image_url, f"realistic_image_{i+1}.png"),
+                                file_name=f"realistic_image_{i+1}.png",
+                                mime="image/png",
+                                key=f"download_img_{i}"
+                            )
+                        st.markdown('</div>', unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -582,12 +610,198 @@ def show_image_generation():
                 st.error(f"Error generating images: {str(e)}")
                 st.error("Please try a different prompt or check your API key.")
 
+def show_cartoon_generation():
+    """Shows the cartoon image generation interface"""
+    st.markdown('<div class="section-title"><h3>Cartoon Image Generation Settings</h3></div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Category selection for cartoon
+        category_options = [
+            "Family & Couple Cartoons",
+            "Wedding Cartoons",
+            "Birthday Cartoons",
+            "Pet Cartoons",
+            "Superhero Cartoons",
+            "Fantasy Characters",
+            "Funny Moments"
+        ]
+        selected_category = st.selectbox("Select Cartoon Category", category_options)
+        
+        # Idea selection for cartoon
+        idea_options = {
+            "Family & Couple Cartoons": ["Family Cartoon", "Couple Cartoon", "Funny Family Moment"],
+            "Wedding Cartoons": ["Wedding Cartoon", "Bride & Groom Cartoon", "Wedding Party"],
+            "Birthday Cartoons": ["Birthday Party Cartoon", "Cake Smash Cartoon", "Gift Opening Cartoon"],
+            "Pet Cartoons": ["Dog Cartoon", "Cat Cartoon", "Pet with Owner Cartoon"],
+            "Superhero Cartoons": ["Superhero Family", "Superhero Couple", "Superhero Pet"],
+            "Fantasy Characters": ["Wizard Cartoon", "Fairy Cartoon", "Dragon Rider"],
+            "Funny Moments": ["Clumsy Moment", "Funny Dance", "Surprise Reaction"]
+        }
+        selected_idea = st.selectbox("Select Cartoon Idea", idea_options[selected_category])
+        
+        # Cartoon style
+        cartoon_style_options = [
+            "Disney Style",
+            "Anime Style",
+            "Comic Book Style",
+            "Cartoon Network Style",
+            "Hand-Drawn Style",
+            "Watercolor Cartoon"
+        ]
+        selected_style = st.selectbox("Cartoon Style", cartoon_style_options)
+        
+        # Additional details for cartoon
+        additional_details = st.text_area(
+            "Additional Details for Cartoon (Optional)", 
+            placeholder="E.g.: funny expressions, bright colors, specific background..."
+        )
+    
+    with col2:
+        # Image size
+        size_options = ["1024x1024", "1024x1792", "1792x1024"]
+        selected_size = st.selectbox("Cartoon Image Size", size_options)
+        
+        # Image quality
+        quality_options_display = ["Standard", "HD"]
+        quality_options_api = ["standard", "hd"]
+        quality_index = st.selectbox("Cartoon Image Quality", quality_options_display)
+        selected_quality = quality_options_api[quality_options_display.index(quality_index)]
+
+        # Number of images
+        num_images = st.slider("Number of Cartoon Images to Generate", 1, 4, 1)
+        
+        # Tips for better cartoon results
+        st.markdown("""
+        <div class="tips-box">
+            <h4>💡 Tips for Better Cartoon Results</h4>
+            <ul>
+                <li>Specify the mood or expression (e.g., funny, cute)</li>
+                <li>Mention specific cartoon styles or inspirations</li>
+                <li>Include background or theme details</li>
+                <li>Describe character traits if important</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Generate cartoon prompt button
+        if st.button("Generate Cartoon Prompts"):
+            system_prompt = """
+            You are a professional cartoonist and illustrator.
+            You need to write a prompt for OpenAI's image generation to create vibrant, stylized cartoon images.
+            Based on the given information, create a detailed and creative cartoon prompt.
+            The prompt should be in English and include all necessary details for a cartoon illustration.
+            """
+            
+            user_prompt = f"""
+            Category: {selected_category}
+            Idea: {selected_idea}
+            Style: {selected_style}
+            Additional details: {additional_details}
+            
+            Please create a prompt for a vibrant, stylized cartoon image based on this information.
+            The prompt should include all necessary details: composition, colors, mood, style specifics, etc.
+            Start the prompt with "A vibrant cartoon illustration" and ensure it feels like a cartoon, not a realistic photo.
+            """
+            
+            try:
+                with st.spinner("Generating cartoon prompt..."):
+                    st.markdown("""
+                    <div class="loading-animation">
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        max_tokens=300
+                    )
+                    
+                    cartoon_prompt = response.choices[0].message.content.strip()
+                    st.session_state.cartoon_prompt = cartoon_prompt
+                    
+                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                    st.markdown("#### Generated Cartoon Prompt:")
+                    st.text_area("", cartoon_prompt, height=150, key="cartoon_prompt_result")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+            except Exception as e:
+                st.error(f"Error generating cartoon prompt: {e}")
+        
+        # Generate cartoon images button
+        if st.button("Generate Cartoon Images") and st.session_state.cartoon_prompt:
+            try:
+                with st.spinner("Generating cartoon images..."):
+                    st.markdown("""
+                    <div class="loading-animation">
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    images = []
+                    for _ in range(num_images):
+                        response = client.images.generate(
+                            model="dall-e-3",
+                            prompt=st.session_state.cartoon_prompt + " Ensure this is a stylized cartoon illustration, not a realistic photo. Use vibrant colors and exaggerated features typical of cartoons.",
+                            n=1,
+                            size=selected_size,
+                            quality=selected_quality
+                        )
+                        
+                        for data in response.data:
+                            image_url = data.url
+                            images.append(image_url)
+                            st.session_state.image_history.append({
+                                "url": image_url,
+                                "type": "Cartoon",
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            })
+                    
+                    st.session_state.cartoon_images = images
+                    
+                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                    st.markdown("#### Generated Cartoon Images:")
+                    
+                    st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
+                    for i, image_url in enumerate(st.session_state.cartoon_images):
+                        st.markdown('<div class="image-card">', unsafe_allow_html=True)
+                        st.image(image_url, use_column_width=True, caption=f"Cartoon Image #{i+1}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button(f"Select Cartoon #{i+1}", key=f"select_cartoon_{i}"):
+                                select_image(image_url, 'Etsy Metadata')
+                        with col2:
+                            st.download_button(
+                                label="Download",
+                                data=download_image(image_url, f"cartoon_image_{i+1}.png"),
+                                file_name=f"cartoon_image_{i+1}.png",
+                                mime="image/png",
+                                key=f"download_cartoon_{i}"
+                            )
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+            except Exception as e:
+                st.error(f"Error generating cartoon images: {str(e)}")
+                st.error("Please try a different prompt or check your API key.")
+
 def show_etsy_metadata():
     """Shows the Etsy metadata interface"""
     st.markdown('<div class="section-title"><h3>Generate Etsy Metadata</h3></div>', unsafe_allow_html=True)
     
     if st.session_state.selected_image:
-        st.markdown("#### Selected Realistic Image")
+        st.markdown("#### Selected Image")
         st.image(st.session_state.selected_image, width=300)
         
         col1, col2 = st.columns(2)
@@ -615,7 +829,6 @@ def show_etsy_metadata():
         # Generate metadata button
         if st.button("Generate Etsy Metadata"):
             with st.spinner("Generating metadata..."):
-                # Add loading animation
                 st.markdown("""
                 <div class="loading-animation">
                     <div class="loading-dot"></div>
@@ -695,41 +908,18 @@ def show_etsy_metadata():
                 st.markdown('</div>', unsafe_allow_html=True)
             
     else:
-        st.info("Please first create and select an image from the 'Image Generation' tab.")
+        st.info("Please first create and select an image from the 'Image Generation' or 'Cartoon Generation' tab.")
         if st.button("Go to Image Generation"):
             st.session_state.active_tab = 'Image Generation'
             st.rerun()
 
-# Main tabs
-tab_names = ["Image Generation", "Etsy Metadata"]
-tabs = st.tabs(tab_names)
+def show_image_history():
+    """Shows the history of generated images"""
+    st.markdown('<div class="section-title"><h3>Generated Image History</h3></div>', unsafe_allow_html=True)
+    
+    if st.session_state.image_history:
+        st.markdown("#### Previously Generated Images")
+        st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
+        for i, img_data in enumerate(reversed(st.session_state.image_history[-12:])):
+            st.markdown('<div class="image-card">', unsafe_allow_html=True)
 
-# Set active tab based on session state
-with tabs[0]:
-    if st.session_state.active_tab == 'Image Generation':
-        show_image_generation()
-    else:
-        if st.button("Switch to Image Generation", key="switch_to_tab1"):
-            st.session_state.active_tab = 'Image Generation'
-            st.rerun()
-
-with tabs[1]:
-    if st.session_state.active_tab == 'Etsy Metadata':
-        show_etsy_metadata()
-    else:
-        if st.button("Switch to Etsy Metadata", key="switch_to_tab2"):
-            st.session_state.active_tab = 'Etsy Metadata'
-            st.rerun()
-
-# App workflow guide
-st.markdown('<div class="section-title"><h3>How It Works</h3></div>', unsafe_allow_html=True)
-st.markdown("""
-1. **Generate Realistic Images**: Start by selecting a category and idea, then generate a realistic image
-2. **Create Etsy Metadata**: Generate product details to help sell your custom portraits online
-""")
-
-# Footer
-st.markdown('<div class="footer">', unsafe_allow_html=True)
-st.markdown("© 2025 AI Image Generation Tool | All Rights Reserved.")
-st.markdown("Powered by OpenAI API")
-st.markdown('</div>', unsafe_allow_html=True)
