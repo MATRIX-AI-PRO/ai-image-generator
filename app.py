@@ -798,4 +798,4 @@ def show_image_generation():
                 st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
                 for i, image_url in enumerate(images):
                     st.markdown('<div class="image-card">', unsafe_allow_html=True)
-                    st.image(image_url, use_column_width=True, 
+                    st.image(image_url, use_column_width=True), 
