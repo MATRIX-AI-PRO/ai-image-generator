@@ -977,88 +977,233 @@ if st.session_state.selected_image_for_etsy:
             "Bu ürün için SEO dostu bir açıklama oluştur. Ürün bir dijital portre ve müşteriye e-posta ile gönderilecek."
         )
 
-    # Metadata oluşturma butonu
-    if st.button("Etsy Metadata Oluştur", key="gen_metadata_btn"):
-        with st.spinner("Etsy için metadata oluşturuluyor..."):
-            try:
-                # Görüntüyü base64'e dönüştür
-                response = requests.get(st.session_state.selected_image_for_etsy)
-                image = Image.open(BytesIO(response.content))
-                buffered = BytesIO()
-                image.save(buffered, format="PNG")
-                img_str = base64.b64encode(buffered.getvalue()).decode()
-                
-                # GPT-4V ile görüntüyü analiz et
-                prompt = f"""Analyze this image and create Etsy metadata for it.
+# Etsy Metadata sekmesi
+with tab3:
+    st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
+    
+    # Seçilen görseli göster
+    if st.session_state.selected_image_for_etsy:
+        st.markdown("### Seçilen Görsel")
+        st.image(st.session_state.selected_image_for_etsy, width=300)
+    else:
+        st.info("Henüz bir görsel seçilmedi. Lütfen diğer sekmelerden bir görsel oluşturun ve 'Etsy İçin Kullan' butonuna tıklayın.")
 
-                Product Type: {product_type}
-                Product Name: {product_name}
-                Price: ${product_price}
-                Delivery Time: {delivery_time}
-                Tags: {tags}
+    # Ürün bilgileri
+    if st.session_state.selected_image_for_etsy:
+        st.markdown("### Ürün Bilgileri")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            product_type = st.selectbox(
+                "Ürün Türü", 
+                ["Dijital İndirilebilir Portre", "Fiziksel Baskı", "Özel Sipariş Portre", "Dijital Çizgi Film Portresi"]
+            )
+            
+            product_name = st.text_input("Ürün Adı", "Özel Dijital Portre")
+            
+            product_price = st.number_input("Fiyat ($)", min_value=5.0, max_value=500.0, value=29.99, step=5.0)
+            
+            delivery_time = st.selectbox(
+                "Teslimat Süresi", 
+                ["1-2 gün", "3-5 gün", "1 hafta", "2 hafta"]
+            )
+        
+        with col2:
+            # Hedef kitle
+            target_audience = st.selectbox(
+                "Hedef Kitle",
+                ["Genel", "Hediye Arayanlar", "Aileler", "Çiftler", "Evcil Hayvan Sahipleri", "İş Profesyonelleri"]
+            )
+            
+            # Stil seçimi
+            art_style = st.selectbox(
+                "Sanat Stili",
+                ["Gerçekçi", "Çizgi Film", "Anime", "Pixar", "Disney", "Minimalist", "Watercolor", "Pop Art"]
+            )
+            
+            # Özel anahtar kelimeler
+            custom_keywords = st.text_area(
+                "Özel Anahtar Kelimeler (virgülle ayırın)", 
+                "digital portrait, custom portrait, personalized gift",
+                help="Ürününüz için özel anahtar kelimeler ekleyin. Bu kelimeler metadata oluşturmada kullanılacaktır."
+            )
 
-                Create the following:
-                1. A catchy, SEO-friendly product title (max 140 characters)
-                2. 5 bullet points highlighting the product features and benefits
-                3. A detailed product description (250-300 words) that is SEO-friendly
-                4. 10 additional relevant tags for Etsy search
-                5. Suggest 3 upsell opportunities for this product
+# Etsy Metadata sekmesi
+with tab3:
+    st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
+    
+    # Seçilen görseli göster
+    if st.session_state.selected_image_for_etsy:
+        st.markdown("### Seçilen Görsel")
+        st.image(st.session_state.selected_image_for_etsy, width=300)
+    else:
+        st.info("Henüz bir görsel seçilmedi. Lütfen diğer sekmelerden bir görsel oluşturun ve 'Etsy İçin Kullan' butonuna tıklayın.")
 
-                Additional context: {description_prompt}
-                """
-                
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/png;base64,{img_str}"
+    # Ürün bilgileri
+    if st.session_state.selected_image_for_etsy:
+        st.markdown("### Ürün Bilgileri")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            product_type = st.selectbox(
+                "Ürün Türü", 
+                ["Dijital İndirilebilir Portre", "Fiziksel Baskı", "Özel Sipariş Portre", "Dijital Çizgi Film Portresi"]
+            )
+            
+            product_name = st.text_input("Ürün Adı", "Özel Dijital Portre")
+            
+            product_price = st.number_input("Fiyat ($)", min_value=5.0, max_value=500.0, value=29.99, step=5.0)
+            
+            delivery_time = st.selectbox(
+                "Teslimat Süresi", 
+                ["1-2 gün", "3-5 gün", "1 hafta", "2 hafta"]
+            )
+        
+        with col2:
+            # Hedef kitle
+            target_audience = st.selectbox(
+                "Hedef Kitle",
+                ["Genel", "Hediye Arayanlar", "Aileler", "Çiftler", "Evcil Hayvan Sahipleri", "İş Profesyonelleri"]
+            )
+            
+            # Stil seçimi
+            art_style = st.selectbox(
+                "Sanat Stili",
+                ["Gerçekçi", "Çizgi Film", "Anime", "Pixar", "Disney", "Minimalist", "Watercolor", "Pop Art"]
+            )
+            
+            # Özel anahtar kelimeler
+            custom_keywords = st.text_area(
+                "Özel Anahtar Kelimeler (virgülle ayırın)", 
+                "digital portrait, custom portrait, personalized gift",
+                help="Ürününüz için özel anahtar kelimeler ekleyin. Bu kelimeler metadata oluşturmada kullanılacaktır."
+            )
+
+        # Metadata oluşturma butonu
+        if st.button("Etsy Metadata Oluştur", key="gen_metadata_btn"):
+            with st.spinner("Etsy için metadata oluşturuluyor..."):
+                try:
+                    # Görüntüyü base64'e dönüştür
+                    response = requests.get(st.session_state.selected_image_for_etsy)
+                    image = Image.open(BytesIO(response.content))
+                    buffered = BytesIO()
+                    image.save(buffered, format="PNG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    
+                    # GPT-4V ile görüntüyü analiz et ve özelleştirilmiş metadata oluştur
+                    prompt = f"""Analyze this image and create highly detailed, SEO-optimized Etsy metadata for it.
+
+                    Product Information:
+                    - Product Type: {product_type}
+                    - Product Name: {product_name}
+                    - Price: ${product_price}
+                    - Delivery Time: {delivery_time}
+                    - Target Audience: {target_audience}
+                    - Art Style: {art_style}
+                    - Custom Keywords: {custom_keywords}
+
+                    Create the following IN ENGLISH ONLY:
+                    
+                    1. TITLE: Create a compelling, SEO-friendly product title (max 140 characters) that includes long-tail keywords and clearly describes the product.
+                    
+                    2. TAGS: Create 20 tags (separated by commas) that include a mix of:
+                       - Short keywords (1-2 words)
+                       - Medium keywords (2-3 words)
+                       - Long-tail keywords (3-5 words)
+                       - Include variations of the main keywords
+                       - Focus on search terms potential customers would use
+                    
+                    3. DESCRIPTION: Write a detailed, engaging product description (300-400 words) that:
+                       - Has a catchy introduction
+                       - Clearly explains what the customer will receive
+                       - Details the process of creating the custom artwork
+                       - Includes use cases and gift ideas
+                       - Contains important policies (digital product, etc.)
+                       - Incorporates SEO keywords naturally throughout
+                       - Uses emojis and formatting for better readability
+                       - Ends with a call to action
+                    
+                    Format the output exactly like this:
+
+                    ```
+                    Title: [The full title here]
+
+                    Tags: [tag1, tag2, tag3, ... all 20 tags separated by commas]
+
+                    Description:
+                    [The full formatted description here with proper paragraphs, emojis, and formatting]
+                    ```
+
+                    Make sure all content is in English, optimized for Etsy search, and specifically tailored to the image and product information provided.
+                    """
+                    
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/png;base64,{img_str}"
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=1000
-                )
-                
-                # Metadata'yı al
-                metadata = response.choices[0].message.content
-                
-                # Sonucu göster
-                st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                st.markdown("### Oluşturulan Etsy Metadata")
-                st.markdown(metadata)
-                
-                # Kopyalama butonu
-                st.text_area("Metadata (Kopyalamak için)", metadata, height=300)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Başarı mesajı
-                st.success("Etsy metadata başarıyla oluşturuldu!")
-                
-            except Exception as e:
-                st.error(f"Metadata oluşturma hatası: {str(e)}")
+                                ]
+                            }
+                        ],
+                        max_tokens=1500
+                    )
+                    
+                    # Metadata'yı al
+                    metadata = response.choices[0].message.content
+                    
+                    # Sonucu göster
+                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                    st.markdown("### Oluşturulan Etsy Metadata (İngilizce)")
+                    st.markdown(metadata)
+                    
+                    # Kopyalama butonu
+                    st.text_area("Metadata (Kopyalamak için)", metadata, height=300)
+                    
+                    # İndirme butonu ekle
+                    metadata_bytes = metadata.encode()
+                    st.download_button(
+                        label="Metadata'yı TXT Olarak İndir",
+                        data=metadata_bytes,
+                        file_name=f"{product_name.replace(' ', '_')}_etsy_metadata.txt",
+                        mime="text/plain"
+                    )
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # Başarı mesajı
+                    st.success("Etsy metadata başarıyla oluşturuldu! Metni kopyalayabilir veya TXT dosyası olarak indirebilirsiniz.")
+                    
+                except Exception as e:
+                    st.error(f"Metadata oluşturma hatası: {str(e)}")
 
-# Etsy satış ipuçları
-st.markdown("### Etsy Satış İpuçları")
-st.markdown("""
-<div class="tips-box">
-    <h4>💡 Etsy'de Daha Fazla Satış İçin İpuçları</h4>
-    <ul>
-        <li>Ürün başlığında anahtar kelimeleri stratejik olarak kullanın</li>
-        <li>Yüksek kaliteli, net görseller kullanın</li>
-        <li>Ürün açıklamasında müşterinin alacağı her şeyi detaylı olarak belirtin</li>
-        <li>Hızlı teslimat ve müşteri hizmetlerine öncelik verin</li>
-        <li>Ürün yorumları için müşterilerinizi teşvik edin</li>
-        <li>Sosyal medyada ürünlerinizi tanıtın</li>
-    </ul>
-</div>
-""", unsafe_allow_html=True)
+    # Etsy satış ipuçları
+    st.markdown("### Etsy Satış İpuçları")
+    st.markdown("""
+    <div class="tips-box">
+        <h4>💡 Etsy'de Daha Fazla Satış İçin İpuçları</h4>
+        <ul>
+            <li>Ürün başlığında anahtar kelimeleri stratejik olarak kullanın</li>
+            <li>Yüksek kaliteli, net görseller kullanın</li>
+            <li>Ürün açıklamasında müşterinin alacağı her şeyi detaylı olarak belirtin</li>
+            <li>Hızlı teslimat ve müşteri hizmetlerine öncelik verin</li>
+            <li>Ürün yorumları için müşterilerinizi teşvik edin</li>
+            <li>Sosyal medyada ürünlerinizi tanıtın</li>
+            <li>Long tail anahtar kelimeleri kullanarak daha spesifik aramalarda üst sıralarda çıkın</li>
+            <li>Ürün açıklamasında SEO için önemli kelimeleri ilk paragrafta kullanın</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
 # Geçmiş görselleri göster
 if st.session_state.image_history:
     # Filtreleme seçenekleri
