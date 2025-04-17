@@ -265,6 +265,12 @@ st.markdown("""
 
 st.markdown("### Realistic Image Generation and Cartoon Conversion Assistant")
 
+# Function to select an image and switch tabs
+def select_image(image_url, next_tab):
+    st.session_state.selected_image = image_url
+    st.session_state.active_tab = next_tab
+    st.rerun()
+
 # Functions
 def show_image_generation():
     """Shows the image generation interface"""
@@ -564,16 +570,14 @@ def show_image_generation():
                     # Show images in a modern gallery
                     st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
                     for i, image_url in enumerate(st.session_state.realistic_images):
-                        st.markdown(f"""
-                        <div class="image-card">
-                            <img src="{image_url}" style="width:100%; border-radius:8px; margin-bottom:10px;">
-                        </div>
-                        """, unsafe_allow_html=True)
-                        if st.button(f"Select Image #{i+1}", key=f"select_img_{i}"):
-                            st.session_state.selected_image = image_url
-                            st.session_state.active_tab = 'Cartoon Conversion'
-                            st.success(f"Image #{i+1} selected! You can now go to the Cartoon Conversion tab.")
-                            st.rerun()  # Reload page
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.image(image_url, use_column_width=True, caption=f"Image #{i+1}")
+                        with col2:
+                            st.markdown("<br><br>", unsafe_allow_html=True)
+                            # FIXED: Use a custom function to handle image selection and tab switching
+                            if st.button(f"Select Image #{i+1}", key=f"select_img_{i}"):
+                                select_image(image_url, 'Cartoon Conversion')
                     st.markdown('</div>', unsafe_allow_html=True)
                     
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -673,10 +677,9 @@ def show_cartoon_conversion():
                         st.success("Image successfully converted to cartoon style!")
                         st.image(cartoon_image_url, use_column_width=True)
                         
-                        # Button to go to Etsy Metadata tab
+                        # FIXED: Button to go to Etsy Metadata tab using the custom function
                         if st.button("Go to Etsy Metadata"):
-                            st.session_state.active_tab = 'Etsy Metadata'
-                            st.rerun()
+                            select_image(cartoon_image_url, 'Etsy Metadata')
                         
                 except Exception as e:
                     st.error(f"Error converting image: {str(e)}")
@@ -692,12 +695,13 @@ def show_cartoon_conversion():
         st.markdown('<div class="section-title"><h3>Previous Conversions</h3></div>', unsafe_allow_html=True)
         st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
         for i, img_data in enumerate(st.session_state.cartoon_images):
-            st.markdown(f"""
-            <div class="image-card">
-                <img src="{img_data["url"]}" style="width:100%; border-radius:8px; margin-bottom:10px;">
-                <p><strong>{img_data["style"]}</strong><br>{img_data["timestamp"]}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.image(img_data["url"], use_column_width=True, caption=f"{img_data['style']} - {img_data['timestamp']}")
+            with col2:
+                # FIXED: Button to use this cartoon for Etsy metadata
+                if st.button(f"Use for Etsy #{i+1}", key=f"use_etsy_{i}"):
+                    select_image(img_data["url"], 'Etsy Metadata')
         st.markdown('</div>', unsafe_allow_html=True)
 
 def show_etsy_metadata():
@@ -815,27 +819,30 @@ def show_etsy_metadata():
 tab_names = ["Image Generation", "Cartoon Conversion", "Etsy Metadata"]
 tabs = st.tabs(tab_names)
 
-# Set active tab
-active_tab_index = tab_names.index(st.session_state.active_tab)
-
-# Show tabs
+# Set active tab based on session state
 with tabs[0]:
     if st.session_state.active_tab == 'Image Generation':
         show_image_generation()
     else:
-        st.button("Switch to This Tab", key="switch_to_tab1", on_click=lambda: setattr(st.session_state, 'active_tab', 'Image Generation') or st.rerun())
+        if st.button("Switch to Image Generation", key="switch_to_tab1"):
+            st.session_state.active_tab = 'Image Generation'
+            st.rerun()
 
 with tabs[1]:
     if st.session_state.active_tab == 'Cartoon Conversion':
         show_cartoon_conversion()
     else:
-        st.button("Switch to This Tab", key="switch_to_tab2", on_click=lambda: setattr(st.session_state, 'active_tab', 'Cartoon Conversion') or st.rerun())
+        if st.button("Switch to Cartoon Conversion", key="switch_to_tab2"):
+            st.session_state.active_tab = 'Cartoon Conversion'
+            st.rerun()
 
 with tabs[2]:
     if st.session_state.active_tab == 'Etsy Metadata':
         show_etsy_metadata()
     else:
-        st.button("Switch to This Tab", key="switch_to_tab3", on_click=lambda: setattr(st.session_state, 'active_tab', 'Etsy Metadata') or st.rerun())
+        if st.button("Switch to Etsy Metadata", key="switch_to_tab3"):
+            st.session_state.active_tab = 'Etsy Metadata'
+            st.rerun()
 
 # App workflow guide
 st.markdown('<div class="section-title"><h3>How It Works</h3></div>', unsafe_allow_html=True)
