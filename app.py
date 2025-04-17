@@ -348,46 +348,68 @@ def direct_style_transfer(image_url, style_name):
     """Doğrudan görsel stil transferi yapan fonksiyon"""
     try:
         # Görüntüyü yükle
-        response = requests.get(image_url)
-        image = Image.open(BytesIO(response.content))
+        if image_url.startswith('data:image'):
+            # Base64 formatındaki görüntüyü işle
+            header, encoded = image_url.split(",", 1)
+            image_data = base64.b64decode(encoded)
+            image = Image.open(BytesIO(image_data))
+        else:
+            # URL'den görüntüyü yükle
+            response = requests.get(image_url)
+            image = Image.open(BytesIO(response.content))
+        
+        # Stil transferi için prompt oluştur
+        style_prompts = {
+            "Pixar 3D": "Create a Pixar 3D style animated character based on this person.",
+            "Disney 2D Animation": "Create a Disney 2D style animated character based on this person.",
+            "DreamWorks": "Create a DreamWorks style animated character based on this person.",
+            "Anime": "Create an anime style character based on this person.",
+            "South Park": "Create a South Park style character based on this person.",
+            "The Simpsons": "Create a Simpsons style character based on this person.",
+            "Studio Ghibli": "Create a Studio Ghibli style character based on this person."
+        }
+        
+        # Seçilen stile göre prompt al
+        style_prompt = style_prompts.get(style_name, "Create a cartoon character based on this person.")
         
         # Görüntüyü base64'e dönüştür
         buffered = BytesIO()
         image.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
+        base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
         
-        # Stil transferi için komut oluştur
-        style_prompts = {
-            "Pixar 3D": "Transform this photo into a Pixar 3D animated character style. Maintain the exact same pose, expression, and composition, just convert to the Pixar 3D animation style with characteristic large eyes, stylized features, and high-quality 3D rendering. Include a small circular thumbnail of the original photo in the corner.",
-            
-            "Disney 2D Animation": "Transform this photo into a Disney 2D animated character style. Maintain the exact same pose, expression, and composition, just convert to the Disney 2D animation style with fluid lines, expressive eyes, and vibrant colors. Include a small circular thumbnail of the original photo in the corner.",
-            
-            "DreamWorks": "Transform this photo into a DreamWorks animation style character. Maintain the exact same pose, expression, and composition, just convert to the DreamWorks style with slightly exaggerated features, detailed textures, and dynamic lighting. Include a small circular thumbnail of the original photo in the corner.",
-            
-            "Anime": "Transform this photo into an anime style character. Maintain the exact same pose, expression, and composition, just convert to anime style with large eyes, simplified facial features, and stylized hair. Include a small circular thumbnail of the original photo in the corner.",
-            
-            "South Park": "Transform this photo into a South Park style character. Maintain the exact same pose and composition, just convert to the South Park paper cutout style with simple shapes, flat colors, and characteristic expressions. Include a small circular thumbnail of the original photo in the corner.",
-            
-            "The Simpsons": "Transform this photo into a Simpsons style character. Maintain the exact same pose and composition, just convert to The Simpsons style with yellow skin tone, overbite, large eyes, and the distinctive outline. Include a small circular thumbnail of the original photo in the corner.",
-            
-            "Studio Ghibli": "Transform this photo into a Studio Ghibli style character. Maintain the exact same pose, expression, and composition, just convert to the Studio Ghibli style with soft details, natural movements, and pastel color palette. Include a small circular thumbnail of the original photo in the corner."
-        }
-        
-        # Seçilen stile göre komut al
-        style_prompt = style_prompts.get(style_name, "Transform this photo into a cartoon character.")
-        
-        # DALL-E ile doğrudan görsel dönüştürme
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=style_prompt,
-            n=1,
-            size="1024x1024",
-            quality="hd",
-            image=buffered.getvalue()
+        # DALL-E ile görsel oluşturma (vision özelliğini kullanarak)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": style_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300
         )
         
-        # Dönüştürülen görselin URL'sini al
-        transformed_image_url = response.data[0].url
+        # GPT-4o'dan alınan açıklamayı DALL-E'ye gönder
+        description = response.choices[0].message.content
+        
+        # DALL-E ile görsel oluştur
+        image_response = client.images.generate(
+            model="dall-e-3",
+            prompt=f"{description} Make it look exactly like a {style_name} character.",
+            n=1,
+            size="1024x1024"
+        )
+        
+        # Oluşturulan görselin URL'sini al
+        transformed_image_url = image_response.data[0].url
         return transformed_image_url
         
     except Exception as e:
