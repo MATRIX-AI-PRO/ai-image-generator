@@ -16,6 +16,8 @@ from google.cloud import aiplatform
 from google.oauth2 import service_account
 from google.protobuf import json_format
 from google.protobuf.struct_pb2 import Value
+import vertexai
+from vertexai.preview.generative_models import GenerativeModel, Image as VertexImage
 
 # Sayfa yapılandırması
 st.set_page_config(page_title="AI Image Studio", layout="wide")
@@ -30,21 +32,36 @@ except Exception as e:
 
 # Google Cloud kimlik doğrulama ve başlatma
 def initialize_google_cloud():
-    # Google Cloud kimlik bilgilerini Streamlit secrets'tan al
-    credentials_json = st.secrets["google_credentials"]
-    
-    # JSON string'i bir sözlük nesnesine dönüştür
-    credentials_info = json.loads(credentials_json)
-    
-    # Kimlik bilgilerini oluştur
-    credentials = service_account.Credentials.from_service_account_info(credentials_info)
-    
-    # Vertex AI'yi başlat
-    aiplatform.init(
-        project=credentials_info["project_id"],
-        location="us-central1",  # veya uygun bölge
-        credentials=credentials
-    )
+    """Google Cloud kimlik doğrulama ve başlatma"""
+    try:
+        # Google Cloud kimlik bilgilerini Streamlit secrets'tan al
+        project_id = st.secrets["google_cloud"]["project_id"]
+        location = st.secrets["google_cloud"]["location"]
+        
+        # Servis hesabı kimlik bilgilerini kullan
+        credentials_info = st.secrets["google_credentials"]
+        
+        # Kimlik bilgilerini oluştur
+        credentials = service_account.Credentials.from_service_account_info(credentials_info)
+        
+        # Vertex AI'yi başlat
+        aiplatform.init(
+            project=project_id,
+            location=location,
+            credentials=credentials
+        )
+        
+        # Vertex AI'yi başlat (generative models için)
+        vertexai.init(
+            project=project_id,
+            location=location,
+            credentials=credentials
+        )
+        
+        return True
+    except Exception as e:
+        st.error(f"Google Cloud başlatma hatası: {str(e)}")
+        return False
 
 # Google Cloud'u başlat
 try:
@@ -300,7 +317,7 @@ if st.session_state.notification:
 
 # Fonksiyonlar
 def generate_ai_prompt(category, idea, ethnicity, style, additional_details):
-    """ChatGPT API ile prompt oluşturma"""
+    """ChatGPT API veya Google Cloud ile prompt oluşturma"""
     try:
         system_prompt = """
         You are a professional photographer and visual artist.
@@ -322,58 +339,48 @@ def generate_ai_prompt(category, idea, ethnicity, style, additional_details):
         Make sure this is a prompt for a REALISTIC photo, not a cartoon or illustration.
         """
         
-        # ChatGPT API çağrısı
-        response = client.chat.completions.create(
-            model="gpt-4", # veya "gpt-3.5-turbo"
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.7,
-            max_tokens=300
-        )
-        
-        # Yanıtı al
-        ai_prompt = response.choices[0].message.content.strip()
-        return ai_prompt
+        # Önce OpenAI ile dene
+        try:
+            # ChatGPT API çağrısı
+            response = client.chat.completions.create(
+                model="gpt-4", # veya "gpt-3.5-turbo"
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.7,
+                max_tokens=300
+            )
+            
+            # Yanıtı al
+            ai_prompt = response.choices[0].message.content.strip()
+            return ai_prompt
+            
+        except Exception as e:
+            # OpenAI başarısız olursa Google Cloud'a yönlendir
+            st.warning("OpenAI API hatası nedeniyle Google Cloud kullanılıyor...")
+            
+            # Gemini Pro modelini kullan
+            model = GenerativeModel("gemini-pro")
+            
+            # API çağrısı
+            full_prompt = system_prompt + "\n\n" + user_prompt
+            response = model.generate_content(
+                full_prompt,
+                generation_config={"temperature": 0.7, "max_output_tokens": 300}
+            )
+            
+            return response.text
         
     except Exception as e:
-        # Eğer OpenAI API hatası olursa, Google Cloud Vertex AI'ye yönlendir
-        try:
-            # Google Cloud Vertex AI'nin text-bison modelini kullan
-            endpoint = aiplatform.Endpoint(
-                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                    st.secrets["google_credentials"]["project_id"]
-                )
-            )
-            
-            full_prompt = system_prompt + "\n\n" + user_prompt
-            
-            response = endpoint.predict(
-                instances=[
-                    {"content": full_prompt}
-                ],
-                parameters={
-                    "temperature": 0.2,
-                    "maxOutputTokens": 300,
-                    "topK": 40,
-                    "topP": 0.95,
-                }
-            )
-            
-            return response.predictions[0]
-        except Exception as backup_error:
-            raise Exception(f"AI prompt oluşturma hatası: {str(e)}, Yedek hata: {str(backup_error)}")
+        raise Exception(f"AI prompt oluşturma hatası: {str(e)}")
 
 def generate_image_with_imagen(prompt, size="1024x1024", num_images=1):
     """Google Imagen ile görsel oluşturma"""
     try:
-        # Imagen model endpoint'i
-        endpoint = aiplatform.Endpoint(
-            endpoint_name="projects/{}/locations/us-central1/publishers/google/models/imagegeneration@002".format(
-                st.secrets["google_credentials"]["project_id"]
-            )
-        )
+        # Google Cloud kimlik bilgilerini al
+        project_id = st.secrets["google_cloud"]["project_id"]
+        location = st.secrets["google_cloud"]["location"]
         
         # Boyut ayarlarını yap
         if size == "1024x1024":
@@ -383,23 +390,25 @@ def generate_image_with_imagen(prompt, size="1024x1024", num_images=1):
         else:  # 1792x1024
             aspect_ratio = "16:9"
         
-        # Imagen API çağrısı
-        response = endpoint.predict(
-            instances=[
-                {
-                    "prompt": prompt,
-                    "sampleCount": num_images,
-                    "aspectRatio": aspect_ratio,
-                    "seed": random.randint(0, 2147483647)
-                }
-            ]
+        # Imagen model endpoint'i
+        endpoint = aiplatform.Endpoint(
+            endpoint_name=f"projects/{project_id}/locations/{location}/publishers/google/models/imagegeneration@002"
         )
+        
+        # Imagen API çağrısı
+        instances = [{
+            "prompt": prompt,
+            "sampleCount": num_images,
+            "aspectRatio": aspect_ratio,
+            "seed": random.randint(0, 2147483647)
+        }]
+        
+        response = endpoint.predict(instances=instances)
         
         # Yanıttan görsel URL'lerini çıkar
         image_urls = []
         for i in range(num_images):
-            # Base64 kodlu görüntüyü al ve geçici bir URL oluştur
-            # Not: Gerçek uygulamada bu görselleri bir depolama hizmetine yükleyebilirsiniz
+            # Base64 kodlu görüntüyü al
             image_data = response.predictions[i]["bytesBase64Encoded"]
             image_url = f"data:image/png;base64,{image_data}"
             image_urls.append(image_url)
@@ -407,7 +416,43 @@ def generate_image_with_imagen(prompt, size="1024x1024", num_images=1):
         return image_urls
         
     except Exception as e:
-        raise Exception(f"Imagen görsel oluşturma hatası: {str(e)}")
+        st.error(f"Imagen API hatası: {str(e)}")
+        # Hata durumunda alternatif olarak OpenAI DALL-E kullanmayı deneyebilirsiniz
+        try:
+            st.warning("Google Imagen API hatası nedeniyle OpenAI DALL-E kullanılıyor...")
+            return generate_image_with_dalle(prompt, size, num_images)
+        except:
+            raise Exception(f"Imagen görsel oluşturma hatası: {str(e)}")
+
+def generate_image_with_dalle(prompt, size="1024x1024", num_images=1):
+    """OpenAI DALL-E ile görsel oluşturma (yedek olarak)"""
+    try:
+        images = []
+        for i in range(num_images):
+            # DALL-E API çağrısı
+            response = client.images.generate(
+                model="dall-e-3",
+                prompt=prompt,
+                size=size,
+                quality="standard",
+                n=1
+            )
+            
+            image_url = response.data[0].url
+            # URL'den görseli indir ve base64'e çevir
+            img_response = requests.get(image_url)
+            img = Image.open(BytesIO(img_response.content))
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            # Base64 formatında URL oluştur
+            base64_url = f"data:image/png;base64,{img_str}"
+            images.append(base64_url)
+            
+        return images
+    except Exception as e:
+        raise Exception(f"DALL-E görsel oluşturma hatası: {str(e)}")
 
 def download_image(image_url):
     """Görsel indirme fonksiyonu"""
@@ -465,6 +510,10 @@ def set_image_for_etsy(image_url):
 def direct_style_transfer(image_url, style_name):
     """Google Imagen ile görsel stil transferi"""
     try:
+        # Google Cloud kimlik bilgilerini al
+        project_id = st.secrets["google_cloud"]["project_id"]
+        location = st.secrets["google_cloud"]["location"]
+        
         # Görüntüyü yükle ve base64'e dönüştür
         if image_url.startswith('data:image'):
             # Zaten base64 formatında
@@ -491,87 +540,146 @@ def direct_style_transfer(image_url, style_name):
         # Seçilen stil açıklaması
         style_desc = style_descriptions.get(style_name, "a cartoon style")
         
-        # Önce ChatGPT API ile dene
+        # Stil transferi için prompt oluştur
+        prompt = f"Transform this image into {style_name} style. {style_desc}. Maintain the same pose, expression, and key features."
+        
+        # Gemini Pro Vision modelini kullan
         try:
-            # Stil transferi için prompt oluştur
-            prompt_request = f"""
-            Analyze an image and create a detailed prompt to transform it into {style_name} style.
+            # Görseli yükle
+            image_part = VertexImage.from_bytes(base64.b64decode(base64_image))
+            
+            # Modeli başlat
+            model = GenerativeModel("gemini-pro-vision")
+            
+            # Prompt oluştur
+            vision_prompt = f"""
+            Analyze this image and create a detailed prompt to transform it into {style_name} style.
             The image shows a person with specific features, expressions, and pose.
             Create a detailed prompt that will maintain the person's identity, expression, pose, and key features,
             but adapt the visual style to {style_desc}.
             Focus on describing the person's facial features, expression, pose, clothing, and any distinctive elements.
             """
             
-            # ChatGPT API çağrısı
-            prompt_response = client.chat.completions.create(
-                model="gpt-4", # veya "gpt-3.5-turbo"
-                messages=[
-                    {"role": "system", "content": "You are a professional artist specializing in style transfer."},
-                    {"role": "user", "content": prompt_request}
-                ],
-                temperature=0.7,
-                max_tokens=500
+            # API çağrısı
+            response = model.generate_content(
+                [image_part, vision_prompt],
+                generation_config={"temperature": 0.7, "max_output_tokens": 500}
             )
             
-            detailed_prompt = prompt_response.choices[0].message.content.strip()
+            detailed_prompt = response.text
+            
+            # Imagen endpoint'i
+            imagen_endpoint = aiplatform.Endpoint(
+                endpoint_name=f"projects/{project_id}/locations/{location}/publishers/google/models/imagegeneration@002"
+            )
+            
+            # Final prompt
+            final_prompt = f"{detailed_prompt} The result should look exactly like the person in the original image but in {style_name} style. Maintain the same pose, expression, and key features."
+            
+            # Imagen API çağrısı
+            response = imagen_endpoint.predict(
+                instances=[
+                    {
+                        "prompt": final_prompt,
+                        "sampleCount": 1,
+                        "aspectRatio": "1:1",
+                        "seed": random.randint(0, 2147483647)
+                    }
+                ]
+            )
+            
+            # Base64 kodlu görüntüyü al
+            image_data = response.predictions[0]["bytesBase64Encoded"]
+            transformed_image_url = f"data:image/png;base64,{image_data}"
+            
+            return transformed_image_url
             
         except Exception as e:
-            # ChatGPT başarısız olursa Google Cloud'a yönlendir
-            text_endpoint = aiplatform.Endpoint(
-                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                    st.secrets["google_credentials"]["project_id"]
-                )
+            # Gemini Pro Vision başarısız olursa doğrudan Imagen kullan
+            st.warning("Gemini Pro Vision API hatası nedeniyle doğrudan Imagen kullanılıyor...")
+            
+            # Imagen endpoint'i
+            imagen_endpoint = aiplatform.Endpoint(
+                endpoint_name=f"projects/{project_id}/locations/{location}/publishers/google/models/imagegeneration@002"
             )
             
-            prompt_response = text_endpoint.predict(
+            # Basit prompt
+            simple_prompt = f"Transform this image into {style_name} style. {style_desc}. Maintain the same pose, expression, and key features."
+            
+            # Imagen API çağrısı
+            response = imagen_endpoint.predict(
                 instances=[
-                    {"content": prompt_request}
-                ],
-                parameters={
-                    "temperature": 0.2,
-                    "maxOutputTokens": 500,
-                    "topK": 40,
-                    "topP": 0.95,
-                }
+                    {
+                        "prompt": simple_prompt,
+                        "sampleCount": 1,
+                        "aspectRatio": "1:1",
+                        "seed": random.randint(0, 2147483647)
+                    }
+                ]
             )
             
-            detailed_prompt = prompt_response.predictions[0]
-        
-        # Imagen ile görsel oluştur
-        final_prompt = f"{detailed_prompt} The result should look exactly like the person in the original image but in {style_name} style. Maintain the same pose, expression, and key features."
-        
-        # Imagen endpoint'i
-        imagen_endpoint = aiplatform.Endpoint(
-            endpoint_name="projects/{}/locations/us-central1/publishers/google/models/imagegeneration@002".format(
-                st.secrets["google_credentials"]["project_id"]
-            )
-        )
-        
-        # Imagen API çağrısı
-        response = imagen_endpoint.predict(
-            instances=[
-                {
-                    "prompt": final_prompt,
-                    "sampleCount": 1,
-                    "aspectRatio": "1:1",
-                    "seed": random.randint(0, 2147483647)
-                }
-            ]
-        )
-        
-        # Base64 kodlu görüntüyü al
-        image_data = response.predictions[0]["bytesBase64Encoded"]
-        transformed_image_url = f"data:image/png;base64,{image_data}"
-        
-        return transformed_image_url
+            # Base64 kodlu görüntüyü al
+            image_data = response.predictions[0]["bytesBase64Encoded"]
+            transformed_image_url = f"data:image/png;base64,{image_data}"
+            
+            return transformed_image_url
         
     except Exception as e:
-        st.error(f"Stil transferi sırasında bir hata oluştu: {str(e)}")
-        return None
+        # Hata durumunda OpenAI'ye yönlendir
+        try:
+            st.warning("Google Cloud API hatası nedeniyle OpenAI DALL-E kullanılıyor...")
+            
+            # Görüntüyü base64'ten çıkar
+            if image_url.startswith('data:image'):
+                image_data = image_url.split(",", 1)[1]
+                image_bytes = base64.b64decode(image_data)
+                image = Image.open(BytesIO(image_bytes))
+            else:
+                response = requests.get(image_url)
+                image = Image.open(BytesIO(response.content))
+            
+            # Görüntüyü geçici olarak kaydet
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
+                image.save(temp_file.name)
+                temp_file_path = temp_file.name
+            
+            # DALL-E API çağrısı
+            with open(temp_file_path, "rb") as image_file:
+                response = client.images.edit(
+                    model="dall-e-2",
+                    image=image_file,
+                    prompt=f"Transform this image into {style_name} style. {style_desc}. Maintain the same pose, expression, and key features.",
+                    n=1,
+                    size="1024x1024"
+                )
+            
+            # Geçici dosyayı sil
+            os.unlink(temp_file_path)
+            
+            # URL'den görseli indir ve base64'e çevir
+            image_url = response.data[0].url
+            img_response = requests.get(image_url)
+            img = Image.open(BytesIO(img_response.content))
+            buffered = BytesIO()
+            img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            # Base64 formatında URL oluştur
+            transformed_image_url = f"data:image/png;base64,{img_str}"
+            
+            return transformed_image_url
+            
+        except Exception as backup_error:
+            st.error(f"Stil transferi sırasında bir hata oluştu: {str(e)}, Yedek hata: {str(backup_error)}")
+            return None
 
 def generate_etsy_description(image_url, product_title, product_type, product_price):
     """Etsy ürün açıklaması oluşturma"""
     try:
+        # Google Cloud kimlik bilgilerini al
+        project_id = st.secrets["google_cloud"]["project_id"]
+        location = st.secrets["google_cloud"]["location"]
+        
         # Görüntüyü base64'e dönüştür
         if image_url.startswith('data:image'):
             # Zaten base64 formatında
@@ -584,35 +692,18 @@ def generate_etsy_description(image_url, product_title, product_type, product_pr
             image.save(buffered, format="PNG")
             base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
         
-        # Önce Google Cloud Vertex AI'nin multimodal-bison modelini kullan
+        # Gemini Pro Vision modelini kullan
         try:
-            endpoint = aiplatform.Endpoint(
-                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/multimodalembedding@001".format(
-                    st.secrets["google_credentials"]["project_id"]
-                )
-            )
+            # Görseli yükle
+            image_part = VertexImage.from_bytes(base64.b64decode(base64_image))
             
-            # Görsel analizi yap
-            image_analysis_response = endpoint.predict(
-                instances=[
-                    {
-                        "image": {"bytesBase64Encoded": base64_image}
-                    }
-                ]
-            )
+            # Modeli başlat
+            model = GenerativeModel("gemini-pro-vision")
             
-            # Görsel analiz sonuçlarını al
-            image_description = image_analysis_response.predictions[0]["imageEmbedding"]["description"]
-        except Exception as e:
-            # Görsel analizi başarısız olursa basit bir açıklama kullan
-            image_description = "A digital or physical product with artistic elements"
-        
-        # Önce ChatGPT API ile dene
-        try:
-            description_prompt = f"""
+            # Create prompt
+            prompt = f"""
             Create an Etsy product description for this image:
             
-            Image Description: {image_description}
             Product Title: {product_title}
             Product Type: {product_type}
             Price: ${product_price}
@@ -625,638 +716,581 @@ def generate_etsy_description(image_url, product_title, product_type, product_pr
             Make it SEO friendly and engaging. Use bullet points where appropriate.
             """
             
-            # ChatGPT API çağrısı
-            description_response = client.chat.completions.create(
-                model="gpt-4", # veya "gpt-3.5-turbo"
+            # API call
+            response = model.generate_content(
+                [image_part, prompt],
+                generation_config={"temperature": 0.7, "max_output_tokens": 1000}
+            )
+            
+            return response.text
+            
+        except Exception as e:
+            # If Gemini Pro Vision fails, redirect to OpenAI
+            st.warning("Google Cloud API error, using OpenAI instead...")
+            
+            # OpenAI API call
+            response = client.chat.completions.create(
+                model="gpt-4", # or "gpt-3.5-turbo"
                 messages=[
                     {"role": "system", "content": "You are a professional e-commerce copywriter specializing in Etsy listings."},
-                    {"role": "user", "content": description_prompt}
+                    {"role": "user", "content": f"""
+                    Create an Etsy product description for this product:
+                    
+                    Product Title: {product_title}
+                    Product Type: {product_type}
+                    Price: ${product_price}
+                    
+                    Include sections for:
+                    1. Product details
+                    2. What customer will receive
+                    3. Why they should buy it
+                    
+                    Make it SEO friendly and engaging. Use bullet points where appropriate.
+                    """}
                 ],
                 temperature=0.7,
                 max_tokens=1000
             )
             
-            return description_response.choices[0].message.content.strip()
+            return response.choices[0].message.content.strip()
             
-        except Exception as e:
-            # ChatGPT başarısız olursa Google Cloud'a yönlendir
-            text_endpoint = aiplatform.Endpoint(
-                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                    st.secrets["google_credentials"]["project_id"]
-                )
-            )
-            
-            description_response = text_endpoint.predict(
-                instances=[
-                    {"content": description_prompt}
-                ],
-                parameters={
-                    "temperature": 0.7,
-                    "maxOutputTokens": 1000,
-                    "topK": 40,
-                    "topP": 0.95,
-                }
-            )
-            
-            return description_response.predictions[0]
-        
     except Exception as e:
-        raise Exception(f"Etsy açıklaması oluşturma hatası: {str(e)}")
+        raise Exception(f"Error generating Etsy description: {str(e)}")
 
 def generate_etsy_tags(product_title, product_type):
-    """Etsy SEO etiketleri oluşturma"""
+    """Generate Etsy SEO tags"""
     try:
-        # Önce ChatGPT API ile dene
+        # Get Google Cloud credentials
+        project_id = st.secrets["google_cloud"]["project_id"]
+        
+        # Use Gemini Pro model
+        model = GenerativeModel("gemini-pro")
+        
+        # Create prompt
+        prompt = f"""
+        Create 13 effective Etsy SEO tags for this product:
+        
+        Product Title: {product_title}
+        Product Type: {product_type}
+        
+        Make sure the tags are within Etsy's character limits (20 characters per tag) and highly searchable.
+        Format the output as a list with each tag on a new line, preceded by a bullet point.
+        """
+        
+        # API call
+        response = model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.5, "max_output_tokens": 300}
+        )
+        
+        return response.text
+        
+    except Exception as e:
+        # In case of error, redirect to OpenAI
         try:
-            tags_prompt = f"""
-            Create 13 effective Etsy SEO tags for this product:
+            st.warning("Google Cloud API error, using OpenAI instead...")
             
-            Product Title: {product_title}
-            Product Type: {product_type}
-            
-            Make sure the tags are within Etsy's character limits (20 characters per tag) and highly searchable.
-            Format the output as a list with each tag on a new line, preceded by a bullet point.
-            """
-            
-            # ChatGPT API çağrısı
-            tags_response = client.chat.completions.create(
-                model="gpt-4", # veya "gpt-3.5-turbo"
+            # OpenAI API call
+            response = client.chat.completions.create(
+                model="gpt-4", # or "gpt-3.5-turbo"
                 messages=[
                     {"role": "system", "content": "You are an SEO expert specializing in Etsy marketplace."},
-                    {"role": "user", "content": tags_prompt}
+                    {"role": "user", "content": f"""
+                    Create 13 effective Etsy SEO tags for this product:
+                    
+                    Product Title: {product_title}
+                    Product Type: {product_type}
+                    
+                    Make sure the tags are within Etsy's character limits (20 characters per tag) and highly searchable.
+                    Format the output as a list with each tag on a new line, preceded by a bullet point.
+                    """}
                 ],
                 temperature=0.5,
                 max_tokens=300
             )
             
-            return tags_response.choices[0].message.content.strip()
+            return response.choices[0].message.content.strip()
             
-        except Exception as e:
-            # ChatGPT başarısız olursa Google Cloud'a yönlendir
-            endpoint = aiplatform.Endpoint(
-                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                    st.secrets["google_credentials"]["project_id"]
-                )
-            )
-            
-            tags_response = endpoint.predict(
-                instances=[
-                    {"content": tags_prompt}
-                ],
-                parameters={
-                    "temperature": 0.5,
-                    "maxOutputTokens": 300,
-                    "topK": 40,
-                    "topP": 0.95,
-                }
-            )
-            
-            return tags_response.predictions[0]
-        
-    except Exception as e:
-        raise Exception(f"Etsy etiketleri oluşturma hatası: {str(e)}")
+        except Exception as backup_error:
+            raise Exception(f"Error generating Etsy tags: {str(e)}, Backup error: {str(backup_error)}")
 
-# Aktif sekmeyi ayarla
-if st.session_state.active_tab == 0:
-    default_tab = "Gerçekçi Görsel Oluşturma"
-elif st.session_state.active_tab == 1:
-    default_tab = "Çizgi Film Dönüştürme"
-elif st.session_state.active_tab == 2:
-    default_tab = "Etsy Metadata"
-else:
-    default_tab = "Görsel Geçmişi"
+def save_to_history(image_url, prompt, image_type="realistic"):
+    """Save to image history"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state.image_history.append({
+        "image_url": image_url,
+        "prompt": prompt,
+        "timestamp": timestamp,
+        "type": image_type
+    })
 
-# Sekmeler
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Gerçekçi Görsel Oluşturma", 
-    "Çizgi Film Dönüştürme", 
-    "Etsy Metadata", 
-    "Görsel Geçmişi"
-])
+# Create tabs
+tabs = st.tabs(["Realistic Image Generation", "Cartoon Conversion", "Etsy Metadata", "Image History"])
 
-# 1. Gerçekçi Görsel Oluşturma Sekmesi
-with tab1:
-    st.markdown('<div class="section-title"><h3>Gerçekçi Görsel Oluşturma</h3></div>', unsafe_allow_html=True)
+# Tab content
+with tabs[0]:
+    st.session_state.active_tab = 0
     
-    col1, col2 = st.columns(2)
+    st.markdown('<div class="section-title">Realistic Image Generation</div>', unsafe_allow_html=True)
     
-    with col1:
-        # Kategori seçimi
-        category_options = [
-            "Family & Couple Portraits",
-            "Wedding Portraits",
-            "Birthday Portraits",
-            "Graduation Portraits",
-            "Pet Portraits",
-            "Special Moment Portraits",
-            "Baby & Child Portraits",
-            "Business & Professional Portraits",
-            "Holiday & Travel Memories"
-        ]
-        selected_category = st.selectbox("Kategori Seçin", category_options, key="category_select")
-        
-        # Fikir seçimi
-        idea_options = {
-            "Family & Couple Portraits": [
-                "Family Portrait", 
-                "Couple Portrait", 
-                "Anniversary Portrait", 
-                "Love Portrait",
-                "Couple Holding Hands",
-                "Family Hugging",
-                "Family Picnic",
-                "Couple Walking on Beach"
-            ],
-            "Wedding Portraits": [
-                "Wedding Moment", 
-                "Wedding Ceremony", 
-                "Wedding Dance", 
-                "Bridal Bouquet",
-                "Groom Preparation",
-                "Bride Preparation",
-                "Wedding Cake Cutting",
-                "Wedding Photoshoot"
-            ],
-            "Birthday Portraits": [
-                "Birthday Celebration", 
-                "Cake Cutting", 
-                "Gift Opening", 
-                "Party Portrait",
-                "Blowing Candles",
-                "Birthday Hat",
-                "Confetti Moment",
-                "Surprise Party"
-            ],
-            "Graduation Portraits": [
-                "Diploma Ceremony", 
-                "Cap Throwing", 
-                "Graduation Gown", 
-                "Achievement Portrait",
-                "Graduation Photo",
-                "Family Graduation",
-                "Campus Memory",
-                "Teacher with Graduate"
-            ],
-            "Pet Portraits": [
-                "Dog Portrait", 
-                "Cat Portrait", 
-                "Pet with Owner", 
-                "Cute Moment",
-                "Playing Dog",
-                "Sleeping Cat",
-                "Pet in Costume",
-                "Pet Birthday Celebration"
-            ],
-            "Special Moment Portraits": [
-                "Holiday Memory", 
-                "Travel Portrait", 
-                "Special Day", 
-                "Family Gathering",
-                "Engagement Moment",
-                "Expecting Baby",
-                "New Home Memory",
-                "Christmas Celebration"
-            ],
-            "Baby & Child Portraits": [
-                "Baby First Steps",
-                "Child Birthday",
-                "Siblings Portrait",
-                "Baby Sleep Moment",
-                "First Tooth",
-                "Child Playing",
-                "First Day of School",
-                "Baby Smile"
-            ],
-            "Business & Professional Portraits": [
-                "Office Portrait",
-                "Business Meeting",
-                "Professional Headshot",
-                "Team Work",
-                "Presentation Moment",
-                "Work Desk",
-                "Success Celebration",
-                "Professional Attire"
-            ],
-                       "Holiday & Travel Memories": [
-                "Beach Vacation",
-                "Mountain Trip",
-                "City Exploration",
-                "Camping Memory",
-                "Landmark Photo",
-                "Sunset Moment",
-                "Family Trip",
-                "Holiday Tradition"
-            ]
-        }
-        
-        selected_idea = st.selectbox("Fikir Seçin", idea_options.get(selected_category, []), key="idea_select")
-        
-        # Görünüm seçimi
-        ethnicity_options = [
-            "European", "Asian", "African", "Middle Eastern", 
-            "Hispanic/Latino", "South Asian", "East Asian", "Mixed"
-        ]
-        selected_ethnicity = st.selectbox("Görünüm Seçin", ethnicity_options, key="ethnicity_select")
-        
-        # Stil seçimi
-        style_options = [
-            "Natural Light", "Studio Portrait", "Vintage", "Modern", 
-            "Dramatic", "Minimalist", "Artistic", "Candid"
-        ]
-        selected_style = st.selectbox("Stil Seçin", style_options, key="style_select")
-        
-        # Ek detaylar
-        additional_details = st.text_area("Ek Detaylar (isteğe bağlı)", key="additional_details", height=100)
-    
-    with col2:
-        st.markdown('<div class="tips-box">', unsafe_allow_html=True)
-        st.markdown("### Prompt Oluşturma İpuçları")
+    # Tips
+    with st.expander("📝 Tips and Suggestions"):
         st.markdown("""
-        - Detaylı bir şekilde görsel içeriğini tanımlayın
-        - Işık, renk ve kompozisyon hakkında bilgi verin
-        - Gerçekçi görseller için "photorealistic" kelimesini kullanın
-        - Belirli bir fotoğraf stili belirtmek için "shot on..." kullanabilirsiniz
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
+        <div class="tips-box">
+            <h4>Tips for Better Results:</h4>
+            <ul>
+                <li>Clearly specify the image category and idea</li>
+                <li>Choose appearance and style options that match your image idea</li>
+                <li>Add special requests like lighting, composition, color scheme in the additional details</li>
+                <li>You can edit the AI-generated prompt for more specific results</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Create form
+    with st.form("realistic_image_form"):
+        # Category selection
+        category = st.selectbox(
+            "Image Category",
+            ["Portrait", "Landscape", "Product", "Fashion", "Food", "Animal", "Sports", "Architecture", "Abstract", "Other"]
+        )
         
-        # Boyut seçimi
+        # Image idea
+        idea = st.text_input("Image Idea", placeholder="E.g., A person watching sunset at the beach")
+        
+        # Appearance selection
+        ethnicity = st.selectbox(
+            "Appearance (For images containing humans)",
+            ["Not specified", "Diverse", "Caucasian", "Asian", "African", "Hispanic", "Middle Eastern", "Mixed"]
+        )
+        
+        # Style selection
+        style = st.selectbox(
+            "Image Style",
+            ["Realistic", "Studio Photography", "Street Photography", "Fashion Photography", 
+             "Documentary", "Minimalist", "Vintage", "Film", "HDR", "Dramatic Lighting"]
+        )
+        
+        # Additional details
+        additional_details = st.text_area(
+            "Additional Details (Optional)",
+            placeholder="E.g., Natural light, warm tones, blurred background"
+        )
+        
+        # Image size selection
         size_options = {
-            "1024x1024": "Kare (1:1)",
-            "1024x1792": "Dikey (9:16)",
-            "1792x1024": "Yatay (16:9)"
+            "Square (1024x1024)": "1024x1024",
+            "Portrait (1024x1792)": "1024x1792",
+            "Landscape (1792x1024)": "1792x1024"
         }
-        selected_size = st.radio("Görsel Boyutu", list(size_options.keys()), format_func=lambda x: size_options[x])
+        size = st.selectbox("Image Size", list(size_options.keys()))
         
-        # Görsel sayısı
-        num_images = st.slider("Kaç Görsel Oluşturulsun?", min_value=1, max_value=4, value=1)
+        # Number of images
+        num_images = st.slider("Number of Images", 1, 4, 1)
         
-        # AI Prompt oluştur butonu
-        if st.button("AI Prompt Oluştur", key="gen_prompt_btn"):
-            with st.spinner("AI prompt oluşturuluyor..."):
-                try:
-                    ai_prompt = generate_ai_prompt(
-                        selected_category,
-                        selected_idea,
-                        selected_ethnicity,
-                        selected_style,
-                        additional_details
-                    )
-                    st.session_state.realistic_prompt = ai_prompt
-                    st.success("Prompt başarıyla oluşturuldu!")
-                except Exception as e:
-                    st.error(f"Prompt oluşturma hatası: {str(e)}")
+        # Submit button
+        submitted = st.form_submit_button("Generate Images")
     
-    # Prompt gösterimi ve manuel düzenleme
-    if 'realistic_prompt' in st.session_state and st.session_state.realistic_prompt:
-        st.markdown("### Oluşturulan Prompt")
-        prompt_text = st.text_area("Prompt'u düzenleyebilirsiniz:", value=st.session_state.realistic_prompt, height=150, key="prompt_edit_area")
-        st.session_state.realistic_prompt = prompt_text
-    
-    # Görsel oluşturma butonu
-    if st.button("Görsel Oluştur", key="gen_img_btn", disabled=not st.session_state.get("realistic_prompt", "")):
-        progress_placeholder = st.empty()
-        
-        try:
-            images = []
-            # Google Imagen ile görsel oluştur
-            image_urls = generate_image_with_imagen(
-                st.session_state.realistic_prompt,
-                size=selected_size,
-                num_images=num_images
-            )
-            
-            for i, image_url in enumerate(image_urls):
-                progress_placeholder.progress((i+1) / num_images, text=f"Görsel {i+1}/{num_images} oluşturuluyor...")
-                images.append(image_url)
-                
-                # Geçmişe ekle
-                st.session_state.image_history.append({
-                    "url": image_url,
-                    "type": "Realistic",
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
-            
-            # İlerleme çubuğunu temizle
-            progress_placeholder.empty()
-            
-            # Session state'e kaydet
-            st.session_state.realistic_images = images
-            
-        except Exception as e:
-            progress_placeholder.empty()
-            st.error(f"Görsel oluşturma hatası: {str(e)}")
-    
-    # Oluşturulan görselleri göster
-    if 'realistic_images' in st.session_state and st.session_state.realistic_images:
-        st.markdown('<div class="result-container">', unsafe_allow_html=True)
-        st.markdown("### Oluşturulan Görseller")
-        
-        # Görselleri grid olarak göster
-        cols = st.columns(min(len(st.session_state.realistic_images), 2))
-        for i, image_url in enumerate(st.session_state.realistic_images):
-            with cols[i % 2]:
-                st.markdown(f'<div class="image-card">', unsafe_allow_html=True)
-                st.image(image_url, use_column_width=True)
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    # İndirme butonu
-                    image_bytes = download_image(image_url)
-                    if image_bytes:
-                        st.download_button(
-                            label="İndir",
-                            data=image_bytes,
-                            file_name=f"realistic_image_{i+1}.png",
-                            mime="image/png",
-                            key=f"download_realistic_{i}"
-                        )
-                with col2:
-                    # Çizgi filme dönüştür butonu
-                    if st.button("Çizgi Filme Dönüştür", key=f"convert_{i}"):
-                        set_image_to_convert(image_url)
-                with col3:
-                    # Etsy butonu
-                    if st.button("Etsy için Seç", key=f"etsy_{i}"):
-                        set_image_for_etsy(image_url)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# 2. Çizgi Film Dönüştürme Sekmesi
-with tab2:
-    st.markdown('<div class="section-title"><h3>Çizgi Film Dönüştürme</h3></div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.markdown("### Stil Seçin")
-        
-        # Çizgi film stilleri
-        styles = [
-            "Pixar 3D",
-            "Disney 2D Animation",
-            "DreamWorks",
-            "Anime",
-            "South Park",
-            "The Simpsons",
-            "Studio Ghibli"
-        ]
-        
-        # Stil seçimi
-        for style in styles:
-            if st.button(style, key=f"style_{style}"):
-                st.session_state.selected_style = style
-        
-        # Seçilen stil gösterimi
-        if st.session_state.selected_style:
-            st.success(f"Seçilen Stil: {st.session_state.selected_style}")
-    
-    with col2:
-        st.markdown("### Dönüştürülecek Görsel")
-        
-        # Görsel yükleme seçeneği
-        uploaded_file = st.file_uploader("Bir görsel yükleyin veya geçmişten seçin", type=["png", "jpg", "jpeg"])
-        
-        if uploaded_file is not None:
-            # Yüklenen görseli göster ve session state'e kaydet
-            image = Image.open(uploaded_file)
-            buf = BytesIO()
-            image.save(buf, format="PNG")
-            byte_im = buf.getvalue()
-            image_b64 = base64.b64encode(byte_im).decode("utf-8")
-            image_url = f"data:image/png;base64,{image_b64}"
-            
-            st.session_state.selected_image_to_convert = image_url
-            st.image(image_url, caption="Yüklenen Görsel", use_column_width=True)
-        
-        elif st.session_state.selected_image_to_convert:
-            # Seçilen görseli göster
-            st.image(st.session_state.selected_image_to_convert, caption="Seçilen Görsel", use_column_width=True)
-        
+    # Handle form submission
+    if submitted:
+        if not idea:
+            st.error("Please enter an image idea.")
         else:
-            st.info("Lütfen bir görsel yükleyin veya geçmişten bir görsel seçin.")
-    
-    # Dönüştürme butonu
-    if st.session_state.selected_image_to_convert and st.session_state.selected_style:
-        if st.button("Görseli Dönüştür", key="convert_btn"):
-            with st.spinner(f"Görsel {st.session_state.selected_style} stiline dönüştürülüyor..."):
+            with st.spinner("Generating AI prompt..."):
                 try:
-                    # Görseli dönüştür
-                    cartoon_image_url = direct_style_transfer(
-                        st.session_state.selected_image_to_convert, 
-                        st.session_state.selected_style
-                    )
+                    # Generate AI prompt
+                    ai_prompt = generate_ai_prompt(category, idea, ethnicity, style, additional_details)
                     
-                    if cartoon_image_url:
-                        # Session state'e kaydet
-                        if 'cartoon_images' not in st.session_state:
-                            st.session_state.cartoon_images = []
+                    # Display generated prompt
+                    st.markdown('<div class="section-title">Generated AI Prompt</div>', unsafe_allow_html=True)
+                    
+                    # Allow editing the prompt
+                    edited_prompt = st.text_area("Edit Prompt if needed:", value=ai_prompt, height=150)
+                    
+                    # Generate images
+                    with st.spinner("Generating images... This may take a moment."):
+                        # Use Google Imagen API
+                        selected_size = size_options[size]
+                        image_urls = generate_image_with_imagen(edited_prompt, selected_size, num_images)
                         
-                        st.session_state.cartoon_images.append(cartoon_image_url)
+                        # Save to session state
+                        st.session_state.realistic_images = image_urls
+                        st.session_state.realistic_prompt = edited_prompt
                         
-                        # Geçmişe ekle
-                        st.session_state.image_history.append({
-                            "url": cartoon_image_url,
-                            "type": f"Cartoon ({st.session_state.selected_style})",
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-                        
-                        st.success("Dönüştürme tamamlandı!")
+                        # Save to history
+                        for img_url in image_urls:
+                            save_to_history(img_url, edited_prompt, "realistic")
                     
-                except Exception as e:
-                    st.error(f"Dönüştürme hatası: {str(e)}")
-    
-    # Dönüştürülen görselleri göster
-    if 'cartoon_images' in st.session_state and st.session_state.cartoon_images:
-        st.markdown('<div class="result-container">', unsafe_allow_html=True)
-        st.markdown("### Dönüştürülen Görseller")
-        
-        # Karşılaştırma gösterimi
-        if st.session_state.selected_image_to_convert and st.session_state.cartoon_images:
-            st.markdown('<div class="comparison-container">', unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([2, 1, 2])
-            
-            with col1:
-                st.image(st.session_state.selected_image_to_convert, caption="Orijinal", use_column_width=True)
-            
-            with col2:
-                st.markdown('<div class="comparison-arrow">→</div>', unsafe_allow_html=True)
-            
-            with col3:
-                st.image(st.session_state.cartoon_images[-1], caption=f"{st.session_state.selected_style} Stili", use_column_width=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Tüm dönüştürülen görselleri göster
-        cols = st.columns(min(len(st.session_state.cartoon_images), 2))
-        for i, image_url in enumerate(st.session_state.cartoon_images):
-            with cols[i % 2]:
-                st.markdown(f'<div class="image-card">', unsafe_allow_html=True)
-                st.image(image_url, use_column_width=True)
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    # İndirme butonu
-                    image_bytes = download_image(image_url)
-                    if image_bytes:
-                        st.download_button(
-                            label="İndir",
-                            data=image_bytes,
-                            file_name=f"cartoon_image_{i+1}.png",
-                            mime="image/png",
-                            key=f"download_cartoon_{i}"
-                        )
-                with col2:
-                    # Etsy butonu
-                    if st.button("Etsy için Seç", key=f"etsy_cartoon_{i}"):
-                        set_image_for_etsy(image_url)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# 3. Etsy Metadata Sekmesi
-with tab3:
-    st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("### Ürün Bilgileri")
-        
-        # Ürün bilgileri
-        product_title = st.text_input("Ürün Başlığı", key="product_title")
-        
-        product_type_options = [
-            "Digital Print", "Physical Print", "T-Shirt Design", 
-            "Mug Design", "Phone Case Design", "Canvas Print", 
-            "Poster", "Sticker Design", "Other"
-        ]
-        product_type = st.selectbox("Ürün Tipi", product_type_options, key="product_type")
-        
-        product_price = st.number_input("Fiyat ($)", min_value=0.99, value=9.99, step=1.0, key="product_price")
-    
-    with col2:
-        st.markdown("### Seçilen Görsel")
-        
-        # Görsel yükleme seçeneği
-        uploaded_file = st.file_uploader("Bir görsel yükleyin veya geçmişten seçin", type=["png", "jpg", "jpeg"], key="etsy_uploader")
-        
-        if uploaded_file is not None:
-            # Yüklenen görseli göster ve session state'e kaydet
-            image = Image.open(uploaded_file)
-            buf = BytesIO()
-            image.save(buf, format="PNG")
-            byte_im = buf.getvalue()
-            image_b64 = base64.b64encode(byte_im).decode("utf-8")
-            image_url = f"data:image/png;base64,{image_b64}"
-            
-            st.session_state.selected_image_for_etsy = image_url
-            st.image(image_url, caption="Yüklenen Görsel", use_column_width=True)
-        
-        elif st.session_state.selected_image_for_etsy:
-            # Seçilen görseli göster
-            st.image(st.session_state.selected_image_for_etsy, caption="Seçilen Görsel", use_column_width=True)
-        
-        else:
-            st.info("Lütfen bir görsel yükleyin veya geçmişten bir görsel seçin.")
-    
-    # Metadata oluşturma butonu
-    if st.session_state.selected_image_for_etsy and product_title and product_type:
-        if st.button("Etsy Metadata Oluştur", key="generate_metadata_btn"):
-            with st.spinner("Etsy için açıklama ve etiketler oluşturuluyor..."):
-                try:
-                    # Etsy açıklaması oluştur
-                    etsy_description = generate_etsy_description(
-                        st.session_state.selected_image_for_etsy,
-                        product_title,
-                        product_type,
-                        product_price
-                    )
+                    # Display results
+                    st.markdown('<div class="section-title">Generated Images</div>', unsafe_allow_html=True)
                     
-                    # Etsy etiketleri oluştur
-                    etsy_tags = generate_etsy_tags(
-                        product_title,
-                        product_type
-                    )
+                    # Create image gallery
+                    st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
                     
-                    # Sonuçları göster
-                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                    st.markdown("### Etsy Ürün Açıklaması")
-                    st.text_area("Açıklama", value=etsy_description, height=300, key="etsy_description")
+                    cols = st.columns(min(4, num_images))
+                    for i, img_url in enumerate(image_urls):
+                        with cols[i % len(cols)]:
+                            st.markdown(f"""
+                            <div class="image-card">
+                                <img src="{img_url}" style="width:100%;" />
+                                <div style="margin-top:10px;">
+                                    <a href="#" onclick="return false;" id="convert-btn-{i}">Convert to Cartoon</a> | 
+                                    <a href="#" onclick="return false;" id="etsy-btn-{i}">Etsy Metadata</a>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Add buttons with functionality
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button(f"Convert to Cartoon {i+1}", key=f"convert_btn_{i}"):
+                                    set_image_to_convert(img_url)
+                            with col2:
+                                if st.button(f"Etsy Metadata {i+1}", key=f"etsy_btn_{i}"):
+                                    set_image_for_etsy(img_url)
+                            
+                            # Download button
+                            img_bytes = download_image(img_url)
+                            st.download_button(
+                                label=f"Download Image {i+1}",
+                                data=img_bytes,
+                                file_name=f"ai_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.png",
+                                mime="image/png",
+                                key=f"download_btn_{i}"
+                            )
                     
-                    st.markdown("### Etsy SEO Etiketleri")
-                    st.text_area("Etiketler", value=etsy_tags, height=150, key="etsy_tags")
                     st.markdown('</div>', unsafe_allow_html=True)
                     
                 except Exception as e:
-                    st.error(f"Metadata oluşturma hatası: {str(e)}")
+                    st.error(f"Error: {str(e)}")
 
-# 4. Görsel Geçmişi Sekmesi
-with tab4:
-    st.markdown('<div class="section-title"><h3>Görsel Geçmişi</h3></div>', unsafe_allow_html=True)
+with tabs[1]:
+    st.session_state.active_tab = 1
     
-    if not st.session_state.image_history:
-        st.info("Henüz oluşturulmuş veya dönüştürülmüş görsel bulunmuyor.")
-    else:
-        # Geçmişi ters çevir (en yeniler önce)
-        history = list(reversed(st.session_state.image_history))
+    st.markdown('<div class="section-title">Cartoon Style Conversion</div>', unsafe_allow_html=True)
+    
+    # Tips
+    with st.expander("📝 Tips for Cartoon Conversion"):
+        st.markdown("""
+        <div class="tips-box">
+            <h4>Tips for Better Cartoon Conversions:</h4>
+            <ul>
+                <li>Use high-quality source images with good lighting</li>
+                <li>Choose a cartoon style that matches the mood of your image</li>
+                <li>Images with clear subjects and simple backgrounds work best</li>
+                <li>For character conversions, images with visible faces work better</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Image upload section
+    st.markdown("### Upload an Image or Use Generated Image")
+    
+    # Check if an image is selected for conversion
+    if st.session_state.selected_image_to_convert:
+        st.markdown("#### Selected Image:")
+        st.image(st.session_state.selected_image_to_convert, width=300)
+    
+    # Upload option
+    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+    
+    if uploaded_file is not None:
+        # Display uploaded image
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Uploaded Image", width=300)
         
-        # Filtreleme seçenekleri
-        col1, col2 = st.columns(2)
-        with col1:
-            filter_options = ["Tümü", "Realistic", "Cartoon"]
-            selected_filter = st.selectbox("Görsel Tipine Göre Filtrele", filter_options)
+        # Convert to base64 for API
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        image_url = f"data:image/png;base64,{img_str}"
         
-        # Filtrelenmiş geçmiş
-        if selected_filter == "Tümü":
-            filtered_history = history
-        else:
-            filtered_history = [item for item in history if selected_filter in item["type"]]
-        
-        # Görselleri göster
-        st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
-        
-        for i, item in enumerate(filtered_history):
-            st.markdown(f'<div class="image-card">', unsafe_allow_html=True)
-            st.image(item["url"], use_column_width=True)
-            st.markdown(f"**Tip:** {item['type']}")
-            st.markdown(f"**Tarih:** {item['timestamp']}")
+        # Update selected image
+        st.session_state.selected_image_to_convert = image_url
+    
+    # Style selection
+    st.markdown("### Select Cartoon Style")
+    
+    # Define styles with sample images
+    styles = {
+        "Pixar 3D": "https://i.imgur.com/example_pixar.jpg",
+        "Disney 2D Animation": "https://i.imgur.com/example_disney.jpg",
+        "DreamWorks": "https://i.imgur.com/example_dreamworks.jpg",
+        "Anime": "https://i.imgur.com/example_anime.jpg",
+        "South Park": "https://i.imgur.com/example_southpark.jpg",
+        "The Simpsons": "https://i.imgur.com/example_simpsons.jpg",
+        "Studio Ghibli": "https://i.imgur.com/example_ghibli.jpg"
+    }
+    
+    # Create style grid
+    style_cols = st.columns(3)
+    for i, (style_name, style_img) in enumerate(styles.items()):
+        with style_cols[i % 3]:
+            # Check if this style is selected
+            is_selected = st.session_state.selected_style == style_name
             
-            col1, col2, col3 = st.columns(3)
+            # Style card with selection state
+            st.markdown(f"""
+            <div class="style-card {'selected' if is_selected else ''}">
+                <p>{style_name}</p>
+            </div>
+            """, unsafe_allow_html=True)
             
-            with col1:
-                # İndirme butonu
-                image_bytes = download_image(item["url"])
-                if image_bytes:
+            # Selection button
+            if st.button(f"Select {style_name}", key=f"style_{i}"):
+                st.session_state.selected_style = style_name
+                st.rerun()
+    
+    # Convert button
+    if st.session_state.selected_image_to_convert and st.session_state.selected_style:
+        if st.button("Convert to Cartoon", key="convert_final"):
+            with st.spinner(f"Converting image to {st.session_state.selected_style} style..."):
+                try:
+                    # Perform style transfer
+                    cartoon_image = direct_style_transfer(
+                        st.session_state.selected_image_to_convert,
+                        st.session_state.selected_style
+                    )
+                    
+                    # Display comparison
+                    st.markdown("### Before and After")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.image(st.session_state.selected_image_to_convert, caption="Original Image", width=300)
+                    with col2:
+                        st.image(cartoon_image, caption=f"{st.session_state.selected_style} Style", width=300)
+                    
+                    # Save to history
+                    save_to_history(cartoon_image, f"Converted to {st.session_state.selected_style} style", "cartoon")
+                    
+                    # Download button
+                    img_bytes = download_image(cartoon_image)
                     st.download_button(
-                        label="İndir",
-                        data=image_bytes,
-                        file_name=f"image_{i+1}.png",
+                        label="Download Cartoon Image",
+                        data=img_bytes,
+                        file_name=f"cartoon_{st.session_state.selected_style}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
+                        mime="image/png"
+                    )
+                    
+                    # Option to use for Etsy
+                    if st.button("Use for Etsy Metadata"):
+                        set_image_for_etsy(cartoon_image)
+                    
+                except Exception as e:
+                    st.error(f"Error during conversion: {str(e)}")
+    else:
+        st.warning("Please select both an image and a cartoon style to continue.")
+
+with tabs[2]:
+    st.session_state.active_tab = 2
+    
+    st.markdown('<div class="section-title">Etsy Product Metadata Generator</div>', unsafe_allow_html=True)
+    
+    # Tips
+    with st.expander("📝 Etsy Selling Tips"):
+        st.markdown("""
+        <div class="tips-box">
+            <h4>Tips for Successful Etsy Listings:</h4>
+            <ul>
+                <li>Use descriptive, keyword-rich titles (max 140 characters)</li>
+                <li>Include all 13 tags allowed by Etsy (max 20 characters each)</li>
+                <li>Write detailed descriptions with all product information</li>
+                <li>Mention materials, dimensions, and usage instructions</li>
+                <li>Highlight what makes your product unique</li>
+                <li>Include shipping information and processing time</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Check if an image is selected for Etsy
+    if st.session_state.selected_image_for_etsy:
+        st.markdown("### Selected Product Image:")
+        st.image(st.session_state.selected_image_for_etsy, width=300)
+    else:
+        st.info("Please select an image from the Image Generation or Cartoon Conversion tabs first.")
+        
+        # Upload option
+        uploaded_file = st.file_uploader("Or upload a product image", type=["jpg", "jpeg", "png"])
+        
+        if uploaded_file is not None:
+            # Display uploaded image
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Uploaded Image", width=300)
+            
+            # Convert to base64 for API
+            buffered = BytesIO()
+            image.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            image_url = f"data:image/png;base64,{img_str}"
+            
+            # Update selected image
+            st.session_state.selected_image_for_etsy = image_url
+    
+    # Product information form
+    if st.session_state.selected_image_for_etsy:
+        with st.form("etsy_metadata_form"):
+            st.markdown("### Product Information")
+            
+            # Product details
+            product_title = st.text_input("Product Title (Max 140 characters)", 
+                                        placeholder="E.g., Custom Digital Portrait, Personalized Cartoon Avatar")
+            
+            product_type = st.selectbox("Product Type", 
+                                        ["Digital Download", "Physical Print", "Print on Demand", 
+                                        "Custom Order", "Art Print", "Poster", "T-shirt Design", "Other"])
+            
+            product_price = st.number_input("Product Price ($)", min_value=0.99, max_value=9999.99, value=19.99, step=1.0)
+            
+            # Submit button
+            submitted = st.form_submit_button("Generate Etsy Metadata")
+        
+        # Handle form submission
+        if submitted:
+            if not product_title:
+                st.error("Please enter a product title.")
+            else:
+                with st.spinner("Generating Etsy metadata..."):
+                    try:
+                        # Generate product description
+                        description = generate_etsy_description(
+                            st.session_state.selected_image_for_etsy,
+                            product_title,
+                            product_type,
+                            product_price
+                        )
+                        
+                        # Generate SEO tags
+                        tags = generate_etsy_tags(product_title, product_type)
+                        
+                        # Display results
+                        st.markdown('<div class="section-title">Etsy Listing Metadata</div>', unsafe_allow_html=True)
+                        
+                        # Product description
+                        st.markdown("### Product Description")
+                        st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                        st.markdown(description)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # SEO tags
+                        st.markdown("### SEO Tags")
+                        st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                        st.markdown(tags)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # Export options
+                        st.markdown("### Export Options")
+                        
+                        # Create text file with all metadata
+                        metadata_text = f"""
+                        ETSY PRODUCT METADATA
+                        ---------------------
+                        
+                        PRODUCT TITLE:
+                        {product_title}
+                        
+                        PRODUCT TYPE:
+                        {product_type}
+                        
+                        PRICE:
+                        ${product_price}
+                        
+                        DESCRIPTION:
+                        {description}
+                        
+                        SEO TAGS:
+                        {tags}
+                        
+                        Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                        """
+                        
+                        # Download button
+                        st.download_button(
+                            label="Download Metadata as Text File",
+                            data=metadata_text,
+                            file_name=f"etsy_metadata_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain"
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"Error generating Etsy metadata: {str(e)}")
+
+with tabs[3]:
+    st.session_state.active_tab = 3
+    
+    st.markdown('<div class="section-title">Image History</div>', unsafe_allow_html=True)
+    
+    # Display image history
+    if st.session_state.image_history:
+        # Sort by timestamp (newest first)
+        sorted_history = sorted(st.session_state.image_history, key=lambda x: x["timestamp"], reverse=True)
+        
+        # Filter options
+        st.markdown("### Filter Options")
+        filter_type = st.selectbox("Filter by Type", ["All", "Realistic", "Cartoon"])
+        
+        # Apply filter
+        if filter_type != "All":
+            filtered_history = [item for item in sorted_history if item["type"].lower() == filter_type.lower()]
+        else:
+            filtered_history = sorted_history
+        
+        # Display images in a grid
+        st.markdown("### Your Generated Images")
+        
+        if not filtered_history:
+            st.info(f"No {filter_type.lower()} images found in your history.")
+        else:
+            # Create image gallery
+            st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
+            
+            cols = st.columns(3)
+            for i, item in enumerate(filtered_history):
+                with cols[i % 3]:
+                    st.markdown(f"""
+                    <div class="image-card">
+                        <img src="{item['image_url']}" style="width:100%;" />
+                        <p><strong>Date:</strong> {item['timestamp']}</p>
+                        <p><strong>Type:</strong> {item['type'].capitalize()}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Expand to show prompt
+                    with st.expander("Show Prompt"):
+                        st.text_area("", value=item["prompt"], height=100, key=f"prompt_{i}", disabled=True)
+                    
+                    # Action buttons
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button(f"Convert to Cartoon", key=f"hist_convert_{i}"):
+                            set_image_to_convert(item["image_url"])
+                    with col2:
+                        if st.button(f"Etsy Metadata", key=f"hist_etsy_{i}"):
+                            set_image_for_etsy(item["image_url"])
+                    
+                    # Download button
+                    img_bytes = download_image(item["image_url"])
+                    st.download_button(
+                        label=f"Download",
+                        data=img_bytes,
+                        file_name=f"history_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{i}.png",
                         mime="image/png",
-                        key=f"download_history_{i}"
+                        key=f"hist_download_{i}"
                     )
             
-            with col2:
-                # Çizgi filme dönüştür butonu
-                if st.button("Çizgi Filme Dönüştür", key=f"convert_history_{i}"):
-                    set_image_to_convert(item["url"])
-            
-            with col3:
-                # Etsy butonu
-                if st.button("Etsy için Seç", key=f"etsy_history_{i}"):
-                    set_image_for_etsy(item["url"])
-            
             st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Clear history button
+            if st.button("Clear History"):
+                st.session_state.image_history = []
+                st.rerun()
+    else:
+        st.info("Your image history is empty. Generate some images to see them here!")
 
 # Footer
 st.markdown("""
 <div class="footer">
-    <p>© 2025 MATRIX AI</p>
+    <p>© 2025 AI Image Studio | Powered by Google Cloud and OpenAI</p>
+    <p>This application uses AI to generate and transform images.</p>
 </div>
 """, unsafe_allow_html=True)
-
