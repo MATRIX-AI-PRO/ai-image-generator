@@ -9,7 +9,7 @@ from datetime import datetime
 import requests
 from io import BytesIO
 import time
-import openai  # OpenAI kütüphanesini ekliyoruz
+from openai import OpenAI
 
 # Google Cloud için gerekli kütüphaneler
 from google.cloud import aiplatform
