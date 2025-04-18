@@ -727,4 +727,533 @@ else:
 # Sekmeler
 tab1, tab2, tab3, tab4 = st.tabs([
     "Gerçekçi Görsel Oluşturma", 
-    "Çizgi Film Dönüştür
+    "Çizgi Film Dönüştürme", 
+    "Etsy Metadata", 
+    "Görsel Geçmişi"
+])
+
+# 1. Gerçekçi Görsel Oluşturma Sekmesi
+with tab1:
+    st.markdown('<div class="section-title"><h3>Gerçekçi Görsel Oluşturma</h3></div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Kategori seçimi
+        category_options = [
+            "Family & Couple Portraits",
+            "Wedding Portraits",
+            "Birthday Portraits",
+            "Graduation Portraits",
+            "Pet Portraits",
+            "Special Moment Portraits",
+            "Baby & Child Portraits",
+            "Business & Professional Portraits",
+            "Holiday & Travel Memories"
+        ]
+        selected_category = st.selectbox("Kategori Seçin", category_options, key="category_select")
+        
+        # Fikir seçimi
+        idea_options = {
+            "Family & Couple Portraits": [
+                "Family Portrait", 
+                "Couple Portrait", 
+                "Anniversary Portrait", 
+                "Love Portrait",
+                "Couple Holding Hands",
+                "Family Hugging",
+                "Family Picnic",
+                "Couple Walking on Beach"
+            ],
+            "Wedding Portraits": [
+                "Wedding Moment", 
+                "Wedding Ceremony", 
+                "Wedding Dance", 
+                "Bridal Bouquet",
+                "Groom Preparation",
+                "Bride Preparation",
+                "Wedding Cake Cutting",
+                "Wedding Photoshoot"
+            ],
+            "Birthday Portraits": [
+                "Birthday Celebration", 
+                "Cake Cutting", 
+                "Gift Opening", 
+                "Party Portrait",
+                "Blowing Candles",
+                "Birthday Hat",
+                "Confetti Moment",
+                "Surprise Party"
+            ],
+            "Graduation Portraits": [
+                "Diploma Ceremony", 
+                "Cap Throwing", 
+                "Graduation Gown", 
+                "Achievement Portrait",
+                "Graduation Photo",
+                "Family Graduation",
+                "Campus Memory",
+                "Teacher with Graduate"
+            ],
+            "Pet Portraits": [
+                "Dog Portrait", 
+                "Cat Portrait", 
+                "Pet with Owner", 
+                "Cute Moment",
+                "Playing Dog",
+                "Sleeping Cat",
+                "Pet in Costume",
+                "Pet Birthday Celebration"
+            ],
+            "Special Moment Portraits": [
+                "Holiday Memory", 
+                "Travel Portrait", 
+                "Special Day", 
+                "Family Gathering",
+                "Engagement Moment",
+                "Expecting Baby",
+                "New Home Memory",
+                "Christmas Celebration"
+            ],
+            "Baby & Child Portraits": [
+                "Baby First Steps",
+                "Child Birthday",
+                "Siblings Portrait",
+                "Baby Sleep Moment",
+                "First Tooth",
+                "Child Playing",
+                "First Day of School",
+                "Baby Smile"
+            ],
+            "Business & Professional Portraits": [
+                "Office Portrait",
+                "Business Meeting",
+                "Professional Headshot",
+                "Team Work",
+                "Presentation Moment",
+                "Work Desk",
+                "Success Celebration",
+                "Professional Attire"
+            ],
+                       "Holiday & Travel Memories": [
+                "Beach Vacation",
+                "Mountain Trip",
+                "City Exploration",
+                "Camping Memory",
+                "Landmark Photo",
+                "Sunset Moment",
+                "Family Trip",
+                "Holiday Tradition"
+            ]
+        }
+        
+        selected_idea = st.selectbox("Fikir Seçin", idea_options.get(selected_category, []), key="idea_select")
+        
+        # Görünüm seçimi
+        ethnicity_options = [
+            "European", "Asian", "African", "Middle Eastern", 
+            "Hispanic/Latino", "South Asian", "East Asian", "Mixed"
+        ]
+        selected_ethnicity = st.selectbox("Görünüm Seçin", ethnicity_options, key="ethnicity_select")
+        
+        # Stil seçimi
+        style_options = [
+            "Natural Light", "Studio Portrait", "Vintage", "Modern", 
+            "Dramatic", "Minimalist", "Artistic", "Candid"
+        ]
+        selected_style = st.selectbox("Stil Seçin", style_options, key="style_select")
+        
+        # Ek detaylar
+        additional_details = st.text_area("Ek Detaylar (isteğe bağlı)", key="additional_details", height=100)
+    
+    with col2:
+        st.markdown('<div class="tips-box">', unsafe_allow_html=True)
+        st.markdown("### Prompt Oluşturma İpuçları")
+        st.markdown("""
+        - Detaylı bir şekilde görsel içeriğini tanımlayın
+        - Işık, renk ve kompozisyon hakkında bilgi verin
+        - Gerçekçi görseller için "photorealistic" kelimesini kullanın
+        - Belirli bir fotoğraf stili belirtmek için "shot on..." kullanabilirsiniz
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Boyut seçimi
+        size_options = {
+            "1024x1024": "Kare (1:1)",
+            "1024x1792": "Dikey (9:16)",
+            "1792x1024": "Yatay (16:9)"
+        }
+        selected_size = st.radio("Görsel Boyutu", list(size_options.keys()), format_func=lambda x: size_options[x])
+        
+        # Görsel sayısı
+        num_images = st.slider("Kaç Görsel Oluşturulsun?", min_value=1, max_value=4, value=1)
+        
+        # AI Prompt oluştur butonu
+        if st.button("AI Prompt Oluştur", key="gen_prompt_btn"):
+            with st.spinner("AI prompt oluşturuluyor..."):
+                try:
+                    ai_prompt = generate_ai_prompt(
+                        selected_category,
+                        selected_idea,
+                        selected_ethnicity,
+                        selected_style,
+                        additional_details
+                    )
+                    st.session_state.realistic_prompt = ai_prompt
+                    st.success("Prompt başarıyla oluşturuldu!")
+                except Exception as e:
+                    st.error(f"Prompt oluşturma hatası: {str(e)}")
+    
+    # Prompt gösterimi ve manuel düzenleme
+    if 'realistic_prompt' in st.session_state and st.session_state.realistic_prompt:
+        st.markdown("### Oluşturulan Prompt")
+        prompt_text = st.text_area("Prompt'u düzenleyebilirsiniz:", value=st.session_state.realistic_prompt, height=150, key="prompt_edit_area")
+        st.session_state.realistic_prompt = prompt_text
+    
+    # Görsel oluşturma butonu
+    if st.button("Görsel Oluştur", key="gen_img_btn", disabled=not st.session_state.get("realistic_prompt", "")):
+        progress_placeholder = st.empty()
+        
+        try:
+            images = []
+            # Google Imagen ile görsel oluştur
+            image_urls = generate_image_with_imagen(
+                st.session_state.realistic_prompt,
+                size=selected_size,
+                num_images=num_images
+            )
+            
+            for i, image_url in enumerate(image_urls):
+                progress_placeholder.progress((i+1) / num_images, text=f"Görsel {i+1}/{num_images} oluşturuluyor...")
+                images.append(image_url)
+                
+                # Geçmişe ekle
+                st.session_state.image_history.append({
+                    "url": image_url,
+                    "type": "Realistic",
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+            
+            # İlerleme çubuğunu temizle
+            progress_placeholder.empty()
+            
+            # Session state'e kaydet
+            st.session_state.realistic_images = images
+            
+        except Exception as e:
+            progress_placeholder.empty()
+            st.error(f"Görsel oluşturma hatası: {str(e)}")
+    
+    # Oluşturulan görselleri göster
+    if 'realistic_images' in st.session_state and st.session_state.realistic_images:
+        st.markdown('<div class="result-container">', unsafe_allow_html=True)
+        st.markdown("### Oluşturulan Görseller")
+        
+        # Görselleri grid olarak göster
+        cols = st.columns(min(len(st.session_state.realistic_images), 2))
+        for i, image_url in enumerate(st.session_state.realistic_images):
+            with cols[i % 2]:
+                st.markdown(f'<div class="image-card">', unsafe_allow_html=True)
+                st.image(image_url, use_column_width=True)
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    # İndirme butonu
+                    image_bytes = download_image(image_url)
+                    if image_bytes:
+                        st.download_button(
+                            label="İndir",
+                            data=image_bytes,
+                            file_name=f"realistic_image_{i+1}.png",
+                            mime="image/png",
+                            key=f"download_realistic_{i}"
+                        )
+                with col2:
+                    # Çizgi filme dönüştür butonu
+                    if st.button("Çizgi Filme Dönüştür", key=f"convert_{i}"):
+                        set_image_to_convert(image_url)
+                with col3:
+                    # Etsy butonu
+                    if st.button("Etsy için Seç", key=f"etsy_{i}"):
+                        set_image_for_etsy(image_url)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# 2. Çizgi Film Dönüştürme Sekmesi
+with tab2:
+    st.markdown('<div class="section-title"><h3>Çizgi Film Dönüştürme</h3></div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown("### Stil Seçin")
+        
+        # Çizgi film stilleri
+        styles = [
+            "Pixar 3D",
+            "Disney 2D Animation",
+            "DreamWorks",
+            "Anime",
+            "South Park",
+            "The Simpsons",
+            "Studio Ghibli"
+        ]
+        
+        # Stil seçimi
+        for style in styles:
+            if st.button(style, key=f"style_{style}"):
+                st.session_state.selected_style = style
+        
+        # Seçilen stil gösterimi
+        if st.session_state.selected_style:
+            st.success(f"Seçilen Stil: {st.session_state.selected_style}")
+    
+    with col2:
+        st.markdown("### Dönüştürülecek Görsel")
+        
+        # Görsel yükleme seçeneği
+        uploaded_file = st.file_uploader("Bir görsel yükleyin veya geçmişten seçin", type=["png", "jpg", "jpeg"])
+        
+        if uploaded_file is not None:
+            # Yüklenen görseli göster ve session state'e kaydet
+            image = Image.open(uploaded_file)
+            buf = BytesIO()
+            image.save(buf, format="PNG")
+            byte_im = buf.getvalue()
+            image_b64 = base64.b64encode(byte_im).decode("utf-8")
+            image_url = f"data:image/png;base64,{image_b64}"
+            
+            st.session_state.selected_image_to_convert = image_url
+            st.image(image_url, caption="Yüklenen Görsel", use_column_width=True)
+        
+        elif st.session_state.selected_image_to_convert:
+            # Seçilen görseli göster
+            st.image(st.session_state.selected_image_to_convert, caption="Seçilen Görsel", use_column_width=True)
+        
+        else:
+            st.info("Lütfen bir görsel yükleyin veya geçmişten bir görsel seçin.")
+    
+    # Dönüştürme butonu
+    if st.session_state.selected_image_to_convert and st.session_state.selected_style:
+        if st.button("Görseli Dönüştür", key="convert_btn"):
+            with st.spinner(f"Görsel {st.session_state.selected_style} stiline dönüştürülüyor..."):
+                try:
+                    # Görseli dönüştür
+                    cartoon_image_url = direct_style_transfer(
+                        st.session_state.selected_image_to_convert, 
+                        st.session_state.selected_style
+                    )
+                    
+                    if cartoon_image_url:
+                        # Session state'e kaydet
+                        if 'cartoon_images' not in st.session_state:
+                            st.session_state.cartoon_images = []
+                        
+                        st.session_state.cartoon_images.append(cartoon_image_url)
+                        
+                        # Geçmişe ekle
+                        st.session_state.image_history.append({
+                            "url": cartoon_image_url,
+                            "type": f"Cartoon ({st.session_state.selected_style})",
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        })
+                        
+                        st.success("Dönüştürme tamamlandı!")
+                    
+                except Exception as e:
+                    st.error(f"Dönüştürme hatası: {str(e)}")
+    
+    # Dönüştürülen görselleri göster
+    if 'cartoon_images' in st.session_state and st.session_state.cartoon_images:
+        st.markdown('<div class="result-container">', unsafe_allow_html=True)
+        st.markdown("### Dönüştürülen Görseller")
+        
+        # Karşılaştırma gösterimi
+        if st.session_state.selected_image_to_convert and st.session_state.cartoon_images:
+            st.markdown('<div class="comparison-container">', unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns([2, 1, 2])
+            
+            with col1:
+                st.image(st.session_state.selected_image_to_convert, caption="Orijinal", use_column_width=True)
+            
+            with col2:
+                st.markdown('<div class="comparison-arrow">→</div>', unsafe_allow_html=True)
+            
+            with col3:
+                st.image(st.session_state.cartoon_images[-1], caption=f"{st.session_state.selected_style} Stili", use_column_width=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Tüm dönüştürülen görselleri göster
+        cols = st.columns(min(len(st.session_state.cartoon_images), 2))
+        for i, image_url in enumerate(st.session_state.cartoon_images):
+            with cols[i % 2]:
+                st.markdown(f'<div class="image-card">', unsafe_allow_html=True)
+                st.image(image_url, use_column_width=True)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    # İndirme butonu
+                    image_bytes = download_image(image_url)
+                    if image_bytes:
+                        st.download_button(
+                            label="İndir",
+                            data=image_bytes,
+                            file_name=f"cartoon_image_{i+1}.png",
+                            mime="image/png",
+                            key=f"download_cartoon_{i}"
+                        )
+                with col2:
+                    # Etsy butonu
+                    if st.button("Etsy için Seç", key=f"etsy_cartoon_{i}"):
+                        set_image_for_etsy(image_url)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# 3. Etsy Metadata Sekmesi
+with tab3:
+    st.markdown('<div class="section-title"><h3>Etsy Metadata Oluşturma</h3></div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("### Ürün Bilgileri")
+        
+        # Ürün bilgileri
+        product_title = st.text_input("Ürün Başlığı", key="product_title")
+        
+        product_type_options = [
+            "Digital Print", "Physical Print", "T-Shirt Design", 
+            "Mug Design", "Phone Case Design", "Canvas Print", 
+            "Poster", "Sticker Design", "Other"
+        ]
+        product_type = st.selectbox("Ürün Tipi", product_type_options, key="product_type")
+        
+        product_price = st.number_input("Fiyat ($)", min_value=0.99, value=9.99, step=1.0, key="product_price")
+    
+    with col2:
+        st.markdown("### Seçilen Görsel")
+        
+        # Görsel yükleme seçeneği
+        uploaded_file = st.file_uploader("Bir görsel yükleyin veya geçmişten seçin", type=["png", "jpg", "jpeg"], key="etsy_uploader")
+        
+        if uploaded_file is not None:
+            # Yüklenen görseli göster ve session state'e kaydet
+            image = Image.open(uploaded_file)
+            buf = BytesIO()
+            image.save(buf, format="PNG")
+            byte_im = buf.getvalue()
+            image_b64 = base64.b64encode(byte_im).decode("utf-8")
+            image_url = f"data:image/png;base64,{image_b64}"
+            
+            st.session_state.selected_image_for_etsy = image_url
+            st.image(image_url, caption="Yüklenen Görsel", use_column_width=True)
+        
+        elif st.session_state.selected_image_for_etsy:
+            # Seçilen görseli göster
+            st.image(st.session_state.selected_image_for_etsy, caption="Seçilen Görsel", use_column_width=True)
+        
+        else:
+            st.info("Lütfen bir görsel yükleyin veya geçmişten bir görsel seçin.")
+    
+    # Metadata oluşturma butonu
+    if st.session_state.selected_image_for_etsy and product_title and product_type:
+        if st.button("Etsy Metadata Oluştur", key="generate_metadata_btn"):
+            with st.spinner("Etsy için açıklama ve etiketler oluşturuluyor..."):
+                try:
+                    # Etsy açıklaması oluştur
+                    etsy_description = generate_etsy_description(
+                        st.session_state.selected_image_for_etsy,
+                        product_title,
+                        product_type,
+                        product_price
+                    )
+                    
+                    # Etsy etiketleri oluştur
+                    etsy_tags = generate_etsy_tags(
+                        product_title,
+                        product_type
+                    )
+                    
+                    # Sonuçları göster
+                    st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                    st.markdown("### Etsy Ürün Açıklaması")
+                    st.text_area("Açıklama", value=etsy_description, height=300, key="etsy_description")
+                    
+                    st.markdown("### Etsy SEO Etiketleri")
+                    st.text_area("Etiketler", value=etsy_tags, height=150, key="etsy_tags")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                except Exception as e:
+                    st.error(f"Metadata oluşturma hatası: {str(e)}")
+
+# 4. Görsel Geçmişi Sekmesi
+with tab4:
+    st.markdown('<div class="section-title"><h3>Görsel Geçmişi</h3></div>', unsafe_allow_html=True)
+    
+    if not st.session_state.image_history:
+        st.info("Henüz oluşturulmuş veya dönüştürülmüş görsel bulunmuyor.")
+    else:
+        # Geçmişi ters çevir (en yeniler önce)
+        history = list(reversed(st.session_state.image_history))
+        
+        # Filtreleme seçenekleri
+        col1, col2 = st.columns(2)
+        with col1:
+            filter_options = ["Tümü", "Realistic", "Cartoon"]
+            selected_filter = st.selectbox("Görsel Tipine Göre Filtrele", filter_options)
+        
+        # Filtrelenmiş geçmiş
+        if selected_filter == "Tümü":
+            filtered_history = history
+        else:
+            filtered_history = [item for item in history if selected_filter in item["type"]]
+        
+        # Görselleri göster
+        st.markdown('<div class="image-gallery">', unsafe_allow_html=True)
+        
+        for i, item in enumerate(filtered_history):
+            st.markdown(f'<div class="image-card">', unsafe_allow_html=True)
+            st.image(item["url"], use_column_width=True)
+            st.markdown(f"**Tip:** {item['type']}")
+            st.markdown(f"**Tarih:** {item['timestamp']}")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # İndirme butonu
+                image_bytes = download_image(item["url"])
+                if image_bytes:
+                    st.download_button(
+                        label="İndir",
+                        data=image_bytes,
+                        file_name=f"image_{i+1}.png",
+                        mime="image/png",
+                        key=f"download_history_{i}"
+                    )
+            
+            with col2:
+                # Çizgi filme dönüştür butonu
+                if st.button("Çizgi Filme Dönüştür", key=f"convert_history_{i}"):
+                    set_image_to_convert(item["url"])
+            
+            with col3:
+                # Etsy butonu
+                if st.button("Etsy için Seç", key=f"etsy_history_{i}"):
+                    set_image_for_etsy(item["url"])
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown("""
+<div class="footer">
+    <p>© 2025 AI Görsel Oluşturma Aracı | Google Imagen API kullanılarak geliştirilmiştir</p>
+</div>
+""", unsafe_allow_html=True)
