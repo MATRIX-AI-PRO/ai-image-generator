@@ -320,7 +320,7 @@ def generate_ai_prompt(category, idea, ethnicity, style, additional_details):
         """
         
         # ChatGPT API çağrısı
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4", # veya "gpt-3.5-turbo"
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -500,7 +500,7 @@ def direct_style_transfer(image_url, style_name):
             """
             
             # ChatGPT API çağrısı
-            prompt_response = openai.ChatCompletion.create(
+            prompt_response = client.chat.completions.create(
                 model="gpt-4", # veya "gpt-3.5-turbo"
                 messages=[
                     {"role": "system", "content": "You are a professional artist specializing in style transfer."},
@@ -623,7 +623,7 @@ def generate_etsy_description(image_url, product_title, product_type, product_pr
             """
             
             # ChatGPT API çağrısı
-            description_response = openai.ChatCompletion.create(
+            description_response = client.chat.completions.create(
                 model="gpt-4", # veya "gpt-3.5-turbo"
                 messages=[
                     {"role": "system", "content": "You are a professional e-commerce copywriter specializing in Etsy listings."},
@@ -676,7 +676,7 @@ def generate_etsy_tags(product_title, product_type):
             """
             
             # ChatGPT API çağrısı
-            tags_response = openai.ChatCompletion.create(
+            tags_response = client.chat.completions.create(
                 model="gpt-4", # veya "gpt-3.5-turbo"
                 messages=[
                     {"role": "system", "content": "You are an SEO expert specializing in Etsy marketplace."},
