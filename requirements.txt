@@ -3,3 +3,5 @@ openai
 google-cloud-aiplatform
 google-auth
 pillow
+requests
+protobuf
