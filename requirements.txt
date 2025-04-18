@@ -1,3 +1,4 @@
 streamlit
 openai
+google-cloud-aiplatform
 pillow
