@@ -9,6 +9,7 @@ from datetime import datetime
 import requests
 from io import BytesIO
 import time
+from openai import OpenAI
 
 # Google Cloud için gerekli kütüphaneler
 from google.cloud import aiplatform
@@ -17,7 +18,15 @@ from google.protobuf import json_format
 from google.protobuf.struct_pb2 import Value
 
 # Sayfa yapılandırması
-st.set_page_config(page_title="AI Görsel Oluşturma Aracı", layout="wide")
+st.set_page_config(page_title="AI Image Studio", layout="wide")
+
+# OpenAI API anahtarını ayarla
+try:
+    # ESKİ KOD: openai.api_key = st.secrets["openai"]["openai_api_key"]
+    # YENİ KOD:
+    client = OpenAI(api_key=st.secrets["openai"]["openai_api_key"])
+except Exception as e:
+    st.error(f"OpenAI API anahtarı bulunamadı: {str(e)}")
 
 # Google Cloud kimlik doğrulama ve başlatma
 def initialize_google_cloud():
@@ -291,15 +300,8 @@ if st.session_state.notification:
 
 # Fonksiyonlar
 def generate_ai_prompt(category, idea, ethnicity, style, additional_details):
-    """Yapay zeka ile prompt oluşturma"""
+    """ChatGPT API ile prompt oluşturma"""
     try:
-        # Google Cloud Vertex AI'nin text-bison modelini kullan
-        endpoint = aiplatform.Endpoint(
-            endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                st.secrets["google_credentials"]["project_id"]
-            )
-        )
-        
         system_prompt = """
         You are a professional photographer and visual artist.
         You need to write a prompt for image generation to create realistic, high-quality images.
@@ -320,24 +322,48 @@ def generate_ai_prompt(category, idea, ethnicity, style, additional_details):
         Make sure this is a prompt for a REALISTIC photo, not a cartoon or illustration.
         """
         
-        full_prompt = system_prompt + "\n\n" + user_prompt
-        
-        response = endpoint.predict(
-            instances=[
-                {"content": full_prompt}
+        # ChatGPT API çağrısı
+        response = client.chat.completions.create(
+            model="gpt-4", # veya "gpt-3.5-turbo"
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
-            parameters={
-                "temperature": 0.2,
-                "maxOutputTokens": 300,
-                "topK": 40,
-                "topP": 0.95,
-            }
+            temperature=0.7,
+            max_tokens=300
         )
         
-        return response.predictions[0]
+        # Yanıtı al
+        ai_prompt = response.choices[0].message.content.strip()
+        return ai_prompt
         
     except Exception as e:
-        raise Exception(f"AI prompt oluşturma hatası: {str(e)}")
+        # Eğer OpenAI API hatası olursa, Google Cloud Vertex AI'ye yönlendir
+        try:
+            # Google Cloud Vertex AI'nin text-bison modelini kullan
+            endpoint = aiplatform.Endpoint(
+                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
+                    st.secrets["google_credentials"]["project_id"]
+                )
+            )
+            
+            full_prompt = system_prompt + "\n\n" + user_prompt
+            
+            response = endpoint.predict(
+                instances=[
+                    {"content": full_prompt}
+                ],
+                parameters={
+                    "temperature": 0.2,
+                    "maxOutputTokens": 300,
+                    "topK": 40,
+                    "topP": 0.95,
+                }
+            )
+            
+            return response.predictions[0]
+        except Exception as backup_error:
+            raise Exception(f"AI prompt oluşturma hatası: {str(e)}, Yedek hata: {str(backup_error)}")
 
 def generate_image_with_imagen(prompt, size="1024x1024", num_images=1):
     """Google Imagen ile görsel oluşturma"""
@@ -465,35 +491,51 @@ def direct_style_transfer(image_url, style_name):
         # Seçilen stil açıklaması
         style_desc = style_descriptions.get(style_name, "a cartoon style")
         
-        # Google Cloud Vertex AI'nin text-bison modelini kullan
-        text_endpoint = aiplatform.Endpoint(
-            endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                st.secrets["google_credentials"]["project_id"]
+        # Önce ChatGPT API ile dene
+        try:
+            # Stil transferi için prompt oluştur
+            prompt_request = f"""
+            Analyze an image and create a detailed prompt to transform it into {style_name} style.
+            The image shows a person with specific features, expressions, and pose.
+            Create a detailed prompt that will maintain the person's identity, expression, pose, and key features,
+            but adapt the visual style to {style_desc}.
+            Focus on describing the person's facial features, expression, pose, clothing, and any distinctive elements.
+            """
+            
+            # ChatGPT API çağrısı
+            prompt_response = client.chat.completions.create(
+                model="gpt-4", # veya "gpt-3.5-turbo"
+                messages=[
+                    {"role": "system", "content": "You are a professional artist specializing in style transfer."},
+                    {"role": "user", "content": prompt_request}
+                ],
+                temperature=0.7,
+                max_tokens=500
             )
-        )
-        
-        # Görsel analizi ve stil transferi için prompt oluştur
-        prompt_request = f"""
-        Analyze an image and create a detailed prompt to transform it into {style_name} style.
-        The image shows a person with specific features, expressions, and pose.
-        Create a detailed prompt that will maintain the person's identity, expression, pose, and key features,
-        but adapt the visual style to {style_desc}.
-        Focus on describing the person's facial features, expression, pose, clothing, and any distinctive elements.
-        """
-        
-        prompt_response = text_endpoint.predict(
-            instances=[
-                {"content": prompt_request}
-            ],
-            parameters={
-                "temperature": 0.2,
-                "maxOutputTokens": 500,
-                "topK": 40,
-                "topP": 0.95,
-            }
-        )
-        
-        detailed_prompt = prompt_response.predictions[0]
+            
+            detailed_prompt = prompt_response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            # ChatGPT başarısız olursa Google Cloud'a yönlendir
+            text_endpoint = aiplatform.Endpoint(
+                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
+                    st.secrets["google_credentials"]["project_id"]
+                )
+            )
+            
+            prompt_response = text_endpoint.predict(
+                instances=[
+                    {"content": prompt_request}
+                ],
+                parameters={
+                    "temperature": 0.2,
+                    "maxOutputTokens": 500,
+                    "topK": 40,
+                    "topP": 0.95,
+                }
+            )
+            
+            detailed_prompt = prompt_response.predictions[0]
         
         # Imagen ile görsel oluştur
         final_prompt = f"{detailed_prompt} The result should look exactly like the person in the original image but in {style_name} style. Maintain the same pose, expression, and key features."
@@ -528,7 +570,7 @@ def direct_style_transfer(image_url, style_name):
         return None
 
 def generate_etsy_description(image_url, product_title, product_type, product_price):
-    """Google Cloud ile Etsy ürün açıklaması oluşturma"""
+    """Etsy ürün açıklaması oluşturma"""
     try:
         # Görüntüyü base64'e dönüştür
         if image_url.startswith('data:image'):
@@ -542,98 +584,134 @@ def generate_etsy_description(image_url, product_title, product_type, product_pr
             image.save(buffered, format="PNG")
             base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
         
-        # Google Cloud Vertex AI'nin multimodal-bison modelini kullan
-        endpoint = aiplatform.Endpoint(
-            endpoint_name="projects/{}/locations/us-central1/publishers/google/models/multimodalembedding@001".format(
-                st.secrets["google_credentials"]["project_id"]
+        # Önce Google Cloud Vertex AI'nin multimodal-bison modelini kullan
+        try:
+            endpoint = aiplatform.Endpoint(
+                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/multimodalembedding@001".format(
+                    st.secrets["google_credentials"]["project_id"]
+                )
             )
-        )
+            
+            # Görsel analizi yap
+            image_analysis_response = endpoint.predict(
+                instances=[
+                    {
+                        "image": {"bytesBase64Encoded": base64_image}
+                    }
+                ]
+            )
+            
+            # Görsel analiz sonuçlarını al
+            image_description = image_analysis_response.predictions[0]["imageEmbedding"]["description"]
+        except Exception as e:
+            # Görsel analizi başarısız olursa basit bir açıklama kullan
+            image_description = "A digital or physical product with artistic elements"
         
-        # Görsel analizi yap
-        image_analysis_response = endpoint.predict(
-            instances=[
-                {
-                    "image": {"bytesBase64Encoded": base64_image}
+        # Önce ChatGPT API ile dene
+        try:
+            description_prompt = f"""
+            Create an Etsy product description for this image:
+            
+            Image Description: {image_description}
+            Product Title: {product_title}
+            Product Type: {product_type}
+            Price: ${product_price}
+            
+            Include sections for:
+            1. Product details
+            2. What customer will receive
+            3. Why they should buy it
+            
+            Make it SEO friendly and engaging. Use bullet points where appropriate.
+            """
+            
+            # ChatGPT API çağrısı
+            description_response = client.chat.completions.create(
+                model="gpt-4", # veya "gpt-3.5-turbo"
+                messages=[
+                    {"role": "system", "content": "You are a professional e-commerce copywriter specializing in Etsy listings."},
+                    {"role": "user", "content": description_prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            return description_response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            # ChatGPT başarısız olursa Google Cloud'a yönlendir
+            text_endpoint = aiplatform.Endpoint(
+                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
+                    st.secrets["google_credentials"]["project_id"]
+                )
+            )
+            
+            description_response = text_endpoint.predict(
+                instances=[
+                    {"content": description_prompt}
+                ],
+                parameters={
+                    "temperature": 0.7,
+                    "maxOutputTokens": 1000,
+                    "topK": 40,
+                    "topP": 0.95,
                 }
-            ]
-        )
-        
-        # Görsel analiz sonuçlarını al
-        image_description = image_analysis_response.predictions[0]["imageEmbedding"]["description"]
-        
-        # Text-bison ile açıklama oluştur
-        text_endpoint = aiplatform.Endpoint(
-            endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                st.secrets["google_credentials"]["project_id"]
             )
-        )
-        
-        description_prompt = f"""
-        Create an Etsy product description for this image:
-        
-        Image Description: {image_description}
-        Product Title: {product_title}
-        Product Type: {product_type}
-        Price: ${product_price}
-        
-        Include sections for:
-        1. Product details
-        2. What customer will receive
-        3. Why they should buy it
-        
-        Make it SEO friendly and engaging. Use bullet points where appropriate.
-        """
-        
-        description_response = text_endpoint.predict(
-            instances=[
-                {"content": description_prompt}
-            ],
-            parameters={
-                "temperature": 0.7,
-                "maxOutputTokens": 1000,
-                "topK": 40,
-                "topP": 0.95,
-            }
-        )
-        
-        return description_response.predictions[0]
+            
+            return description_response.predictions[0]
         
     except Exception as e:
         raise Exception(f"Etsy açıklaması oluşturma hatası: {str(e)}")
 
 def generate_etsy_tags(product_title, product_type):
-    """Google Cloud ile Etsy SEO etiketleri oluşturma"""
+    """Etsy SEO etiketleri oluşturma"""
     try:
-        # Google Cloud Vertex AI'nin text-bison modelini kullan
-        endpoint = aiplatform.Endpoint(
-            endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
-                st.secrets["google_credentials"]["project_id"]
+        # Önce ChatGPT API ile dene
+        try:
+            tags_prompt = f"""
+            Create 13 effective Etsy SEO tags for this product:
+            
+            Product Title: {product_title}
+            Product Type: {product_type}
+            
+            Make sure the tags are within Etsy's character limits (20 characters per tag) and highly searchable.
+            Format the output as a list with each tag on a new line, preceded by a bullet point.
+            """
+            
+            # ChatGPT API çağrısı
+            tags_response = client.chat.completions.create(
+                model="gpt-4", # veya "gpt-3.5-turbo"
+                messages=[
+                    {"role": "system", "content": "You are an SEO expert specializing in Etsy marketplace."},
+                    {"role": "user", "content": tags_prompt}
+                ],
+                temperature=0.5,
+                max_tokens=300
             )
-        )
-        
-        tags_prompt = f"""
-        Create 13 effective Etsy SEO tags for this product:
-        
-        Product Title: {product_title}
-        Product Type: {product_type}
-        
-        Make sure the tags are within Etsy's character limits (20 characters per tag) and highly searchable.
-        Format the output as a list with each tag on a new line, preceded by a bullet point.
-        """
-        
-        tags_response = endpoint.predict(
-            instances=[
-                {"content": tags_prompt}
-            ],
-            parameters={
-                "temperature": 0.5,
-                "maxOutputTokens": 300,
-                "topK": 40,
-                "topP": 0.95,
-            }
-        )
-        
-        return tags_response.predictions[0]
+            
+            return tags_response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            # ChatGPT başarısız olursa Google Cloud'a yönlendir
+            endpoint = aiplatform.Endpoint(
+                endpoint_name="projects/{}/locations/us-central1/publishers/google/models/text-bison".format(
+                    st.secrets["google_credentials"]["project_id"]
+                )
+            )
+            
+            tags_response = endpoint.predict(
+                instances=[
+                    {"content": tags_prompt}
+                ],
+                parameters={
+                    "temperature": 0.5,
+                    "maxOutputTokens": 300,
+                    "topK": 40,
+                    "topP": 0.95,
+                }
+            )
+            
+            return tags_response.predictions[0]
         
     except Exception as e:
         raise Exception(f"Etsy etiketleri oluşturma hatası: {str(e)}")
@@ -1178,6 +1256,6 @@ with tab4:
 # Footer
 st.markdown("""
 <div class="footer">
-    <p>© 2025 AI Görsel Oluşturma Aracı | Google Imagen API kullanılarak geliştirilmiştir</p>
+    <p>© 2025 MATRIX AI</p>
 </div>
 """, unsafe_allow_html=True)
