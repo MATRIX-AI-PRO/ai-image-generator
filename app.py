@@ -18,8 +18,7 @@ from google.protobuf import json_format
 from google.protobuf.struct_pb2 import Value
 
 # Sayfa yapılandırması
-st.set_page_config(page_title="AI Görsel Oluşturma Aracı", layout="wide")
-
+st.set_page_config(page_title="AI Image Studio", layout="wide") page_icon="🎨",
 # OpenAI API anahtarını ayarla
 try:
     openai.api_key = st.secrets["openai"]["api_key"]
