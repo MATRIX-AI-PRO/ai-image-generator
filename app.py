@@ -21,7 +21,7 @@ from google.protobuf.struct_pb2 import Value
 st.set_page_config(page_title="AI Image Studio", layout="wide")
 # OpenAI API anahtarını ayarla
 try:
-    openai.api_key = st.secrets["openai"]["api_key"]
+    openai.api_key = st.secrets["openai"]["openai_api_key"]
 except Exception as e:
     st.error(f"OpenAI API anahtarı bulunamadı: {str(e)}")
 
