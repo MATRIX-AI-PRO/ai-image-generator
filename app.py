@@ -1254,6 +1254,6 @@ with tab4:
 # Footer
 st.markdown("""
 <div class="footer">
-    <p>© 2025 AI Görsel Oluşturma Aracı | Google Imagen API kullanılarak geliştirilmiştir</p>
+    <p>© 2025 MATRIX AI</p>
 </div>
 """, unsafe_allow_html=True)
